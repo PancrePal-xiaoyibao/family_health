@@ -69,6 +69,22 @@
 - 文档更新（新增/修改的 docs 文件与更新点）:
   - 更新 `docs/USER_GUIDE.md`：注册流程、Provider 管理、MCP 模板导入、聊天背景提示词与附件模式
 
+### [2026-02-16 18:35] 内网访问与密码认知修复
+- 问题描述: 用户反馈仅 `localhost:5173` 可访问，`<内网IP>:5173` 不可访问；并询问 Owner 初始密码。
+- 根因定位: `vite` 默认仅监听本机回环地址；登录页默认值让“存在默认密码”产生误解。
+- 解决方案: 新增 `npm run dev:lan` 脚本，登录页去掉默认凭据并明确“系统无默认 Owner 密码”。
+- 代码变更（文件/函数）:
+  - `frontend/package.json`: 新增 `dev:lan`
+  - `frontend/src/pages/AuthPage.tsx`: 清空默认用户名/密码并增加提示文案
+- 验证结果:
+  - `npm run lint` 通过
+  - `npm run build` 通过
+- 影响评估: 改善内网可访问性与用户认知，不影响业务接口。
+- 文档更新（新增/修改的 docs 文件与更新点）:
+  - 更新 `README.md`
+  - 更新 `doc/DEPLOYMENT.md`
+  - 更新 `docs/USER_GUIDE.md`
+
 ## 待追踪问题
 - 当前未接入 websocket/流式输出，Agent 回复为请求完成后整条返回。
 - Viewer 角色仅做 UI 按钮层限制，后端权限仍是最终兜底。

@@ -7,9 +7,9 @@ type AuthMode = "login" | "bootstrap" | "register";
 
 export function AuthPage({ onLogin }: { onLogin: (session: UserSession) => void }) {
   const [mode, setMode] = useState<AuthMode>("login");
-  const [username, setUsername] = useState("owner");
-  const [password, setPassword] = useState("OwnerPass123");
-  const [displayName, setDisplayName] = useState("Owner");
+  const [username, setUsername] = useState("");
+  const [password, setPassword] = useState("");
+  const [displayName, setDisplayName] = useState("");
   const [loading, setLoading] = useState(false);
   const [message, setMessage] = useState<string>("");
 
@@ -86,6 +86,7 @@ export function AuthPage({ onLogin }: { onLogin: (session: UserSession) => void 
       <section className="auth-card">
         <h2>{title}</h2>
         <p>{desc}</p>
+        <p className="muted">系统没有默认 Owner 密码，首次初始化时由你自行设置。</p>
 
         <form
           onSubmit={

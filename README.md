@@ -29,15 +29,19 @@ uv run uvicorn app.main:app --reload --host 127.0.0.1 --port 8000
 cd frontend
 npm install
 npm run dev
+# 内网其他设备访问前端开发服务:
+# npm run dev:lan
 ```
 
 默认访问:
 - 前端: `http://localhost:5173`
 - 后端: `http://localhost:8000`
+- 内网访问前端（启用 `npm run dev:lan` 后）: `http://<你的局域网IP>:5173`
 
 说明:
 - Windows 下若出现 `WinError 10013`，优先使用 `--host 127.0.0.1`。
 - 仅在需要内网其他设备访问时再切换为 `--host 0.0.0.0`。
+- Owner 无默认密码，首次 `bootstrap-owner` 时由你自行设置。
 
 ## 联调验收（一键脚本）
 ```powershell

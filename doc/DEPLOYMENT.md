@@ -48,11 +48,14 @@ uv sync
 cd frontend
 npm install
 npm run dev
+# 需要局域网其他设备访问时:
+# npm run dev:lan
 # 或: npm run build && 通过后端静态托管
 ```
 
 - 开发时前端默认将 `/api` 代理到后端 `http://localhost:8000`（见 `frontend/vite.config.ts`）。
 - Windows 若遇到 `WinError 10013`（套接字权限错误），请优先保持 `--host 127.0.0.1`；仅在需要内网其他设备访问时再改成 `--host 0.0.0.0`。
+- 如果 `npm run dev` 只能本机访问（`localhost:5173`），请改用 `npm run dev:lan`，再通过 `http://<局域网IP>:5173` 访问。
 
 ### 2.4 基础验证
 
@@ -70,6 +73,8 @@ Invoke-RestMethod -Method POST http://localhost:8000/api/v1/auth/login `
   -ContentType "application/json" `
   -Body '{"username":"owner","password":"owner-pass-123"}'
 ```
+
+说明：`owner-pass-123` 仅是示例值，系统没有内置默认 Owner 密码。
 
 ---
 
