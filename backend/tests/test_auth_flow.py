@@ -1,0 +1,48 @@
+def test_bootstrap_login_refresh_and_admin_create_user(client):
+    bootstrap_res = client.post(
+        "/api/v1/auth/bootstrap-owner",
+        json={"username": "owner", "password": "owner-pass-123", "display_name": "Owner"},
+    )
+    assert bootstrap_res.status_code == 200
+    assert bootstrap_res.json()["data"]["role"] == "owner"
+
+    login_res = client.post(
+        "/api/v1/auth/login",
+        json={"username": "owner", "password": "owner-pass-123", "device_label": "local"},
+    )
+    assert login_res.status_code == 200
+    token_data = login_res.json()["data"]
+    access = token_data["access_token"]
+    refresh = token_data["refresh_token"]
+
+    create_user_res = client.post(
+        "/api/v1/auth/users",
+        headers={"Authorization": f"Bearer {access}"},
+        json={
+            "username": "member01",
+            "password": "member-pass-123",
+            "display_name": "Member",
+            "role": "member",
+        },
+    )
+    assert create_user_res.status_code == 200
+    assert create_user_res.json()["data"]["role"] == "member"
+
+    refresh_res = client.post("/api/v1/auth/refresh", json={"refresh_token": refresh})
+    assert refresh_res.status_code == 200
+    assert refresh_res.json()["data"]["access_token"]
+
+
+def test_bootstrap_owner_only_once(client):
+    first = client.post(
+        "/api/v1/auth/bootstrap-owner",
+        json={"username": "owner", "password": "owner-pass-123", "display_name": "Owner"},
+    )
+    assert first.status_code == 200
+
+    second = client.post(
+        "/api/v1/auth/bootstrap-owner",
+        json={"username": "owner2", "password": "owner-pass-123", "display_name": "Owner2"},
+    )
+    assert second.status_code == 400
+    assert second.json()["code"] == 2001

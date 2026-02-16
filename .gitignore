@@ -1,0 +1,137 @@
+# -----------------------------------------------------------------------------
+# 家庭健康管理助手 — 综合 .gitignore（Python / Node / 数据 / 打包 / IDE）
+# -----------------------------------------------------------------------------
+
+# ----- Python -----
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+MANIFEST
+.venv/
+venv/
+ENV/
+env/
+.pytest_cache/
+.coverage
+htmlcov/
+.tox/
+.nox/
+.mypy_cache/
+.dmypy.json
+dmypy.json
+.ruff_cache/
+*.manifest
+*.spec.bak
+
+# uv
+.uv/
+uv.lock
+
+# ----- Node / 前端 -----
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+.npm
+.yarn/cache
+.yarn/unplugged
+.yarn/build-state.yml
+.yarn/install-state.gz
+.pnp.*
+dist/
+.next/
+out/
+.nuxt/
+.vite/
+*.tsbuildinfo
+.cache/
+
+# ----- 环境与密钥 -----
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+secrets/
+*.local
+
+# ----- 数据与持久化（PRD: Raw Vault / Sanitized Workspace） -----
+data/
+*.db
+*.sqlite
+*.sqlite3
+*.db-journal
+*.db-wal
+*.db-shm
+raw_vault/
+sanitized_workspace/
+chroma_data/
+*.chroma
+
+# ----- 日志与临时 -----
+logs/
+*.log
+tmp/
+temp/
+*.tmp
+*.temp
+*.swp
+*~
+
+# ----- 打包与分发 -----
+# PyInstaller / Nuitka
+*.exe
+*.bin
+output/
+packager/dist/
+packager/build/
+# 保留 packager/*.spec 等配置，仅忽略输出目录
+
+# ----- IDE / 编辑器 -----
+.idea/
+.vscode/
+*.sublime-project
+*.sublime-workspace
+
+# AI 助手与本地配置（可按需取消忽略以提交规则）
+.cursor/
+.claude/
+.codex/
+.gemini/
+
+# ----- 操作系统 -----
+.DS_Store
+.DS_Store?
+.AppleDouble
+.LSOverride
+Thumbs.db
+ehthumbs.db
+Desktop.ini
+$RECYCLE.BIN/
+
+# ----- 用户导出包（避免误提交） -----
+docs/_export/
+*.zip
+
+# ----- 其他 -----
+*.bak
+*.orig
+.cache
