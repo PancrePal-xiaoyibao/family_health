@@ -1,6 +1,6 @@
-# 家庭健康管理助手 — 开发与部署指南
+﻿# 家庭健康管理助手 — 开发与部署指南
 
-> 目标：**新开发者可按此独立完成环境搭建、本地运行与 .exe 打包**。与 [PRD.md](./PRD.md) 中的系统设计、数据模型及分阶段执行指令保持一致。
+> 目标：**新开发者可按此独立完成环境搭建、本地运行、联调验收与发布前检查**。与 [PRD.md](./PRD.md) 中的系统设计、数据模型及分阶段执行指令保持一致。
 
 ---
 
@@ -35,7 +35,7 @@ uv sync
 
 - **启动服务**:
   ```bash
-  uv run uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
+  uv run uvicorn app.main:app --reload --host 127.0.0.1 --port 8000
   ```
 - **数据目录**（首次运行会自动创建）:
   - `data/raw_vault/` — 未脱敏域
@@ -51,9 +51,10 @@ npm run dev
 # 或: npm run build && 通过后端静态托管
 ```
 
-- 开发时需将 API 代理到后端（如 `http://localhost:8000`），具体见前端 `vite.config` 或等价配置。
+- 开发时前端默认将 `/api` 代理到后端 `http://localhost:8000`（见 `frontend/vite.config.ts`）。
+- Windows 若遇到 `WinError 10013`（套接字权限错误），请优先保持 `--host 127.0.0.1`；仅在需要内网其他设备访问时再改成 `--host 0.0.0.0`。
 
-### 2.4 验证
+### 2.4 基础验证
 
 - 浏览器访问前端地址，应出现登录页或首次 Owner 初始化页（视是否已有库而定）。
 - 调用健康检查或登录接口，确认后端与 DB 正常。
@@ -70,57 +71,11 @@ Invoke-RestMethod -Method POST http://localhost:8000/api/v1/auth/login `
   -Body '{"username":"owner","password":"owner-pass-123"}'
 ```
 
-阶段 1/2 额外验证（模型目录 + 聊天附件脱敏门禁）:
-
-```powershell
-# 1) 创建模型 provider
-$token = "<access_token>"
-$headers = @{ Authorization = "Bearer $token" }
-Invoke-RestMethod -Method POST http://localhost:8000/api/v1/model-providers `
-  -Headers $headers `
-  -ContentType "application/json" `
-  -Body '{"provider_name":"gemini","base_url":"https://example.local","api_key":"demo","enabled":true}'
-
-# 2) 创建脱敏规则（手机号）
-Invoke-RestMethod -Method POST http://localhost:8000/api/v1/desensitization/rules `
-  -Headers $headers `
-  -ContentType "application/json" `
-  -Body '{"member_scope":"global","rule_type":"literal","pattern":"13800138000","replacement_token":"[PHONE]","enabled":true}'
-
-# 3) 创建 MCP server 并绑定到 qa agent
-$mcp = Invoke-RestMethod -Method POST http://localhost:8000/api/v1/mcp/servers `
-  -Headers $headers `
-  -ContentType "application/json" `
-  -Body '{"name":"tool-a","endpoint":"mock://tool-a","auth_type":"none","enabled":true,"timeout_ms":8000}'
-Invoke-RestMethod -Method PUT http://localhost:8000/api/v1/mcp/bindings/qa `
-  -Headers $headers `
-  -ContentType "application/json" `
-  -Body ("{`"mcp_server_ids`":[`"" + $mcp.data.id + "`"]}")
-
-# 4) 创建 KB 并构建最小文档
-$kb = Invoke-RestMethod -Method POST http://localhost:8000/api/v1/knowledge-bases `
-  -Headers $headers `
-  -ContentType "application/json" `
-  -Body '{"name":"family-kb","chunk_size":400,"chunk_overlap":50}'
-Invoke-RestMethod -Method POST ("http://localhost:8000/api/v1/knowledge-bases/" + $kb.data.id + "/build") `
-  -Headers $headers `
-  -ContentType "application/json" `
-  -Body '{"documents":[{"title":"doc1","content":"高血压用药指南"}]}'
-```
-
 ---
 
-## 3. Checkfix 闭环（必选）
+## 3. 联调与 Checkfix
 
-每次代码变更或每阶段完成后执行，与 PRD §5 一致。
-
-| 层级 | 命令 |
-|------|------|
-| 后端 | `uv sync` → `ruff check .` → `ruff format --check .`（或 `black --check .`）→ `pytest` |
-| 前端 | 依赖变更时 `npm install`；每次变更后 `npm run lint`，可选 `npm run build` |
-| 通用 | 若项目内已配置 pre-commit / CI 脚本，优先执行项目既有脚本 |
-
-### 3.1 联调验收脚本（阶段 6）
+### 3.1 全链路联调验收脚本（推荐）
 
 - 脚本: `scripts/acceptance_integration.ps1`
 - 覆盖链路: 登录 -> 配置 -> 对话 -> MCP -> KB -> 检索 -> 导出下载
@@ -130,6 +85,20 @@ Invoke-RestMethod -Method POST ("http://localhost:8000/api/v1/knowledge-bases/" 
 ```powershell
 powershell -ExecutionPolicy Bypass -File .\scripts\acceptance_integration.ps1 -SkipFrontendCheck
 ```
+
+只做流程演练（不发真实请求）:
+
+```powershell
+powershell -ExecutionPolicy Bypass -File .\scripts\acceptance_integration.ps1 -DryRun -SkipFrontendCheck
+```
+
+### 3.2 日常 Checkfix 闭环（必选）
+
+| 层级 | 命令 |
+|------|------|
+| 后端 | `uv sync` -> `uv run ruff check .` -> `uv run ruff format --check .` -> `uv run pytest` |
+| 前端 | 依赖变更时 `npm install`；每次变更后 `npm run lint`，可选 `npm run build` |
+| 通用 | 若项目内已配置 pre-commit / CI 脚本，优先执行项目既有脚本 |
 
 ---
 
@@ -162,5 +131,6 @@ powershell -ExecutionPolicy Bypass -File .\scripts\acceptance_integration.ps1 -S
 | 文档 | 说明 |
 |------|------|
 | [PRD.md](./PRD.md) | 需求审计、ADR、系统设计、数据模型、状态机、API 契约、分阶段 AI 执行指令 |
-| [doc/api/](./api/) | 各 API 模块接口文档（auth / chat / agent / model_registry / mcp / knowledge_base / export 等） |
-| [docs/USER_GUIDE.md](../docs/USER_GUIDE.md) | 用户说明书（与前端功能同步） |
+| [api/README.md](./api/README.md) | 各 API 模块接口文档目录 |
+| [../docs/USER_GUIDE.md](../docs/USER_GUIDE.md) | 用户说明书（与前端功能同步） |
+| [../scripts/README.md](../scripts/README.md) | 联调验收脚本说明 |
