@@ -1,0 +1,19 @@
+﻿:root {
+  --font-display: "Bodoni MT", "Times New Roman", serif;
+  --font-body: "Segoe UI", "Noto Sans SC", sans-serif;
+
+  --bg-deep: #0f1a1c;
+  --bg-soft: #1c2a2f;
+  --panel: rgba(244, 240, 230, 0.88);
+  --panel-strong: rgba(255, 251, 242, 0.95);
+  --text-main: #1a2228;
+  --text-muted: #52616d;
+  --accent: #1f8a78;
+  --accent-strong: #155e52;
+  --danger: #a23939;
+  --line: rgba(26, 34, 40, 0.14);
+
+  --radius-lg: 16px;
+  --radius-md: 10px;
+  --shadow: 0 18px 44px rgba(8, 15, 18, 0.22);
+}
