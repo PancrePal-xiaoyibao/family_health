@@ -9,6 +9,10 @@
 
 字段：`name/endpoint/auth_type/auth_payload/enabled/timeout_ms`
 
+前端约定：
+- 用户填写 `command + args` 或导入模板后，前端自动转换为 `endpoint`，格式：`command://<command> <args...>`。
+- 普通用户无需手工拼接 endpoint 字符串。
+
 ## 2) Agent 绑定
 - `PUT /api/v1/mcp/bindings/{agent_name}`
 - `GET /api/v1/mcp/bindings/{agent_name}`

@@ -40,7 +40,8 @@ export function SettingsCenter({ token }: { token: string }) {
 
   const [mcpForm, setMcpForm] = useState({
     name: "tool-a",
-    endpoint: "mock://tool-a",
+    command: "npx",
+    args: "mcp-pubmed-llm-server",
     auth_type: "none",
     auth_payload: "",
     enabled: true,
@@ -72,6 +73,16 @@ export function SettingsCenter({ token }: { token: string }) {
         item.id.toLowerCase().includes(q),
     );
   }, [providerFilter, providers]);
+
+  const buildCommandEndpoint = (command: string, args: string[]): string => {
+    return `command://${command} ${args.join(" ")}`.trim();
+  };
+
+  const splitArgs = (raw: string): string[] =>
+    raw
+      .split(" ")
+      .map((item) => item.trim())
+      .filter(Boolean);
 
   const loadData = async () => {
     try {
@@ -205,11 +216,20 @@ export function SettingsCenter({ token }: { token: string }) {
   };
 
   const createMcp = async () => {
+    if (!mcpForm.name.trim() || !mcpForm.command.trim()) {
+      setMessage("请填写 MCP 名称和启动命令");
+      return;
+    }
     try {
+      const args = splitArgs(mcpForm.args);
       await api.createMcpServer(
         {
-          ...mcpForm,
+          name: mcpForm.name.trim(),
+          endpoint: buildCommandEndpoint(mcpForm.command.trim(), args),
+          auth_type: mcpForm.auth_type,
           auth_payload: mcpForm.auth_payload || undefined,
+          enabled: mcpForm.enabled,
+          timeout_ms: mcpForm.timeout_ms,
         },
         token,
       );
@@ -242,8 +262,8 @@ export function SettingsCenter({ token }: { token: string }) {
         return;
       }
       for (const [name, cfg] of entries) {
-        const args = (cfg.args ?? []).join(" ");
-        const endpoint = `command://${cfg.command ?? "npx"} ${args}`.trim();
+        const args = Array.isArray(cfg.args) ? cfg.args : [];
+        const endpoint = buildCommandEndpoint(cfg.command ?? "npx", args);
         await api.createMcpServer(
           {
             name,
@@ -438,7 +458,7 @@ export function SettingsCenter({ token }: { token: string }) {
 
         {tab === "mcp" && (
           <>
-            <p className="muted">支持手工新增和 JSON 模板批量导入，当前共 {mcpServers.length} 个工具。</p>
+            <p className="muted">支持按 npx/命令参数自动生成配置，当前共 {mcpServers.length} 个工具。</p>
             <label>
               MCP 名称
               <input
@@ -447,10 +467,19 @@ export function SettingsCenter({ token }: { token: string }) {
               />
             </label>
             <label>
-              MCP Endpoint
+              启动命令
               <input
-                value={mcpForm.endpoint}
-                onChange={(e) => setMcpForm((s) => ({ ...s, endpoint: e.target.value }))}
+                value={mcpForm.command}
+                onChange={(e) => setMcpForm((s) => ({ ...s, command: e.target.value }))}
+                placeholder="npx"
+              />
+            </label>
+            <label>
+              启动参数（空格分隔）
+              <input
+                value={mcpForm.args}
+                onChange={(e) => setMcpForm((s) => ({ ...s, args: e.target.value }))}
+                placeholder="mcp-pubmed-llm-server"
               />
             </label>
             <button type="button" onClick={createMcp}>

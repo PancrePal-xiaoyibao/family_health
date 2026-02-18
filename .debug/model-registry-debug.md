@@ -1,66 +1,66 @@
-# Model Registry Debug ¼ÇÂ¼
+ï»¿# Model Registry Debug è®°å½•
 
-## ÔªĞÅÏ¢
-- Ä£¿éÃû³Æ: model-registry
-- ´´½¨Ê±¼ä: 2026-02-18
-- ×îºó¸üĞÂ: 2026-02-18
-- Ïà¹ØÎÄ¼ş: `backend/app/services/model_registry_service.py`, `backend/app/api/v1/model_registry.py`, `frontend/src/pages/SettingsCenter.tsx`, `frontend/src/api/client.ts`, `doc/api/model_registry.md`, `docs/USER_GUIDE.md`
-- ÒÀÀµÄ£¿é: auth, settings-center, runtime-profile
-- ÓÃ»§ËµÃ÷ÊéÂ·¾¶£¨Éæ¼°Ç°¶Ë¹¦ÄÜÊ±£©: `docs/USER_GUIDE.md`
-- ¿ª·¢/²¿ÊğÎÄµµÂ·¾¶£¨Éæ¼°ºó¶Ë»ò»·¾³Ê±£©: `doc/api/model_registry.md`
+## å…ƒä¿¡æ¯
+- æ¨¡å—åç§°: model-registry
+- åˆ›å»ºæ—¶é—´: 2026-02-18
+- æœ€åæ›´æ–°: 2026-02-18
+- ç›¸å…³æ–‡ä»¶: `backend/app/services/model_registry_service.py`, `backend/app/api/v1/model_registry.py`, `frontend/src/pages/SettingsCenter.tsx`, `frontend/src/api/client.ts`, `doc/api/model_registry.md`, `docs/USER_GUIDE.md`
+- ä¾èµ–æ¨¡å—: auth, settings-center, runtime-profile
+- ç”¨æˆ·è¯´æ˜ä¹¦è·¯å¾„ï¼ˆæ¶‰åŠå‰ç«¯åŠŸèƒ½æ—¶ï¼‰: `docs/USER_GUIDE.md`
+- å¼€å‘/éƒ¨ç½²æ–‡æ¡£è·¯å¾„ï¼ˆæ¶‰åŠåç«¯æˆ–ç¯å¢ƒæ—¶ï¼‰: `doc/api/model_registry.md`
 
-## ÔËĞĞÉÏÏÂÎÄÓë²âÊÔ¹æÔò£¨Ê×´ÎÈ·ÈÏºóÌîĞ´£¬ºóĞøÓÅÏÈ¶ÁÈ¡´Ë´¦£¬²»ÔÙ·´¸´Ñ¯ÎÊ£©
-- ÔËĞĞ»·¾³: ±¾»ú Windows
-- SSH ·½Ê½£¨ÈôÔ¶³Ì£©: N/A
-- Ô¶³ÌÏîÄ¿Â·¾¶£¨ÈôÔ¶³Ì£©: N/A
-- ÑéÖ¤/Checkfix Ö´ĞĞ·½Ê½: ±¾µØÖÕ¶ËÖ´ĞĞ£»ºó¶ËÔÚ `backend/` ÏÂÖ´ĞĞ `uv run ruff check .` Óë `uv run pytest`£¬Ç°¶ËÔÚ `frontend/` ÏÂÖ´ĞĞ `npm run build`
+## è¿è¡Œä¸Šä¸‹æ–‡ä¸æµ‹è¯•è§„åˆ™ï¼ˆé¦–æ¬¡ç¡®è®¤åå¡«å†™ï¼Œåç»­ä¼˜å…ˆè¯»å–æ­¤å¤„ï¼Œä¸å†åå¤è¯¢é—®ï¼‰
+- è¿è¡Œç¯å¢ƒ: æœ¬æœº Windows
+- SSH æ–¹å¼ï¼ˆè‹¥è¿œç¨‹ï¼‰: N/A
+- è¿œç¨‹é¡¹ç›®è·¯å¾„ï¼ˆè‹¥è¿œç¨‹ï¼‰: N/A
+- éªŒè¯/Checkfix æ‰§è¡Œæ–¹å¼: æœ¬åœ°ç»ˆç«¯æ‰§è¡Œï¼›åç«¯åœ¨ `backend/` ä¸‹æ‰§è¡Œ `uv run ruff check .` ä¸ `uv run pytest`ï¼Œå‰ç«¯åœ¨ `frontend/` ä¸‹æ‰§è¡Œ `npm run build`
 
-## ÉÏÏÂÎÄ¹ØÏµÍøÂç
-- ÎÄ¼ş½á¹¹
-  - `backend/app/api/v1/model_registry.py`: provider API ±©Â¶²ã
-  - `backend/app/services/model_registry_service.py`: provider Ô¤ÖÃ¡¢È¥ÖØÓëÄ£ĞÍË¢ĞÂÒµÎñ
-  - `frontend/src/pages/SettingsCenter.tsx`: provider ¹ÜÀí UI
-  - `frontend/src/api/client.ts`: API ·â×°Óë´íÎó´¦Àí
-- º¯Êıµ÷ÓÃÁ´
+## ä¸Šä¸‹æ–‡å…³ç³»ç½‘ç»œ
+- æ–‡ä»¶ç»“æ„
+  - `backend/app/api/v1/model_registry.py`: provider API æš´éœ²å±‚
+  - `backend/app/services/model_registry_service.py`: provider é¢„ç½®ã€å»é‡ä¸æ¨¡å‹åˆ·æ–°ä¸šåŠ¡
+  - `frontend/src/pages/SettingsCenter.tsx`: provider ç®¡ç† UI
+  - `frontend/src/api/client.ts`: API å°è£…ä¸é”™è¯¯å¤„ç†
+- å‡½æ•°è°ƒç”¨é“¾
   - SettingsCenter -> api.createProvider/listProviderPresets -> `/api/v1/model-providers` + `/api/v1/model-provider-presets` -> model_registry_service
-- ±äÁ¿ÒÀÀµÍ¼
-  - `providerPresetKey` Çı¶¯ `providerForm.provider_name/base_url` ×Ô¶¯Ìî³ä
-  - `provider_name + base_url` ×÷Îªºó¶ËÖØ¸´Ğ£Ñé×éºÏ¼ü
-- Êı¾İÁ÷Ïò
-  - ÓÃ»§ÔÚ UI Ñ¡Ô¤ÖÃ/×Ô¶¨Òå -> Ìá½» provider -> ºó¶Ë¼ÓÃÜ API Key Èë¿â -> Ë¢ĞÂÄ£ĞÍÄ¿Â¼
+- å˜é‡ä¾èµ–å›¾
+  - `providerPresetKey` é©±åŠ¨ `providerForm.provider_name/base_url` è‡ªåŠ¨å¡«å……
+  - `provider_name + base_url` ä½œä¸ºåç«¯é‡å¤æ ¡éªŒç»„åˆé”®
+- æ•°æ®æµå‘
+  - ç”¨æˆ·åœ¨ UI é€‰é¢„ç½®/è‡ªå®šä¹‰ -> æäº¤ provider -> åç«¯åŠ å¯† API Key å…¥åº“ -> åˆ·æ–°æ¨¡å‹ç›®å½•
 
-## Debug ÀúÊ·
-### [2026-02-18 15:40] Provider Ô¤ÖÃ¶ËµãÓë 401 ÎóÅĞĞŞ¸´
-- ÎÊÌâÃèÊö
-  - ÓÃ»§°´ÏÖÓĞÄ¬ÈÏÖµÅäÖÃ Gemini ºó±¨´í£¬ÇÒ `POST /api/v1/model-providers` ³öÏÖ 401¡£
-  - ĞèÒªÄÚÖÃ¾­µä¹©Ó¦ÉÌÍêÕû¶Ëµã£¬²¢±£Áô¿ÉÎŞÏŞĞÂÔöµÄ×Ô¶¨ÒåÄ£Ê½¡£
-- ¸ùÒò¶¨Î»
-  - Ç°¶ËÄ¬ÈÏ `base_url` ÎªÕ¼Î»µØÖ· `https://example.local/gemini`£¬Ò×µ¼ÖÂÎóÅäÖÃ¡£
-  - `model-providers` ½Ó¿ÚÒªÇó Bearer Token£¬401 ÊÇ¼øÈ¨Ê§°Ü£¨³£¼ûÓÚ token ¹ıÆÚ/È±Ê§£©£¬²¢·Ç Gemini ¶Ëµã±¾Éí´íÎó¡£
-  - ºó¶ËÈ¥ÖØ½ö°´ `provider_name`£¬ÎŞ·¨Ö§³ÖÍ¬¹©Ó¦ÉÌ¶à¶Ëµã£¨ÈçÖÇÆ× chat/coding Á½¸öµØÖ·£©¡£
-- ½â¾ö·½°¸
-  - ĞÂÔö `GET /api/v1/model-provider-presets` Í³Ò»ÏÂ·¢Ô¤ÖÃ¹©Ó¦ÉÌÄ£°å¡£
-  - Ô¤ÖÃ Gemini/OpenAI/Zhipu(Chat/Coding)/SiliconFlow/OpenRouter + Custom¡£
-  - provider È¥ÖØ¹æÔò¸ÄÎª `(provider_name, base_url)`¡£
-  - ÉèÖÃÖĞĞÄĞÂÔö¡°Ô¤ÖÃ¹©Ó¦ÉÌ¡±ÏÂÀ­£¬Ö§³ÖÒ»¼üÌî³äÓë Custom ×Ô¶¨Òå¡£
-  - API ´íÎó½âÎöÔö¼Ó¶Ô FastAPI `detail` µÄ¼æÈİ£¬401 ÌáÊ¾¸üÃ÷È·¡£
-- ´úÂë±ä¸ü£¨ÎÄ¼ş/º¯Êı£©
-  - `backend/app/services/model_registry_service.py`: `_PROVIDER_PRESETS`, `list_provider_presets`, `_normalize_base_url`, create/update È¥ÖØÂß¼­
-  - `backend/app/api/v1/model_registry.py`: ĞÂÔö `list_provider_presets_api`£¬ÍêÉÆ provider ´íÎó·µ»Ø
-  - `frontend/src/api/types.ts`: ĞÂÔö `ProviderPreset`
-  - `frontend/src/api/client.ts`: ĞÂÔö `listProviderPresets`£¬Ç¿»¯´íÎó½âÎö
-  - `frontend/src/pages/SettingsCenter.tsx`: Ô¤ÖÃÑ¡ÔñÓë±íµ¥×Ô¶¯Ìî³ä
-  - `backend/tests/test_phase1_phase2_flow.py`: Ô¤ÖÃ½Ó¿ÚÓëÍ¬¹©Ó¦ÉÌ¶à¶Ëµã²âÊÔ
-- ÑéÖ¤½á¹û
-  - ´ıÖ´ĞĞ checkfix¡£
-- Ó°ÏìÆÀ¹À
-  - ½öÀ©Õ¹ provider ¹ÜÀíÄÜÁ¦£¬²»Ó°Ïì¼ÈÓĞ chat/kb/export Ö÷Á÷³Ì¡£
-- ÎÄµµ¸üĞÂ£¨ĞÂÔö/ĞŞ¸ÄµÄ docs ÎÄ¼şÓë¸üĞÂµã£©
-  - `doc/api/model_registry.md`: ĞÂÔöÔ¤ÖÃ½Ó¿Ú¡¢¶ËµãÇåµ¥¡¢È¥ÖØ¹æÔò
-  - `docs/USER_GUIDE.md`: ĞÂÔöÔ¤ÖÃ/×Ô¶¨Òå²Ù×÷²½ÖèÓë 401 ÅÅ²é
+## Debug å†å²
+### [2026-02-18 15:40] Provider é¢„ç½®ç«¯ç‚¹ä¸ 401 è¯¯åˆ¤ä¿®å¤
+- é—®é¢˜æè¿°
+  - ç”¨æˆ·æŒ‰ç°æœ‰é»˜è®¤å€¼é…ç½® Gemini åæŠ¥é”™ï¼Œä¸” `POST /api/v1/model-providers` å‡ºç° 401ã€‚
+  - éœ€è¦å†…ç½®ç»å…¸ä¾›åº”å•†å®Œæ•´ç«¯ç‚¹ï¼Œå¹¶ä¿ç•™å¯æ— é™æ–°å¢çš„è‡ªå®šä¹‰æ¨¡å¼ã€‚
+- æ ¹å› å®šä½
+  - å‰ç«¯é»˜è®¤ `base_url` ä¸ºå ä½åœ°å€ `https://example.local/gemini`ï¼Œæ˜“å¯¼è‡´è¯¯é…ç½®ã€‚
+  - `model-providers` æ¥å£è¦æ±‚ Bearer Tokenï¼Œ401 æ˜¯é‰´æƒå¤±è´¥ï¼ˆå¸¸è§äº token è¿‡æœŸ/ç¼ºå¤±ï¼‰ï¼Œå¹¶é Gemini ç«¯ç‚¹æœ¬èº«é”™è¯¯ã€‚
+  - åç«¯å»é‡ä»…æŒ‰ `provider_name`ï¼Œæ— æ³•æ”¯æŒåŒä¾›åº”å•†å¤šç«¯ç‚¹ï¼ˆå¦‚æ™ºè°± chat/coding ä¸¤ä¸ªåœ°å€ï¼‰ã€‚
+- è§£å†³æ–¹æ¡ˆ
+  - æ–°å¢ `GET /api/v1/model-provider-presets` ç»Ÿä¸€ä¸‹å‘é¢„ç½®ä¾›åº”å•†æ¨¡æ¿ã€‚
+  - é¢„ç½® Gemini/OpenAI/Zhipu(Chat/Coding)/SiliconFlow/OpenRouter + Customã€‚
+  - provider å»é‡è§„åˆ™æ”¹ä¸º `(provider_name, base_url)`ã€‚
+  - è®¾ç½®ä¸­å¿ƒæ–°å¢â€œé¢„ç½®ä¾›åº”å•†â€ä¸‹æ‹‰ï¼Œæ”¯æŒä¸€é”®å¡«å……ä¸ Custom è‡ªå®šä¹‰ã€‚
+  - API é”™è¯¯è§£æå¢åŠ å¯¹ FastAPI `detail` çš„å…¼å®¹ï¼Œ401 æç¤ºæ›´æ˜ç¡®ã€‚
+- ä»£ç å˜æ›´ï¼ˆæ–‡ä»¶/å‡½æ•°ï¼‰
+  - `backend/app/services/model_registry_service.py`: `_PROVIDER_PRESETS`, `list_provider_presets`, `_normalize_base_url`, create/update å»é‡é€»è¾‘
+  - `backend/app/api/v1/model_registry.py`: æ–°å¢ `list_provider_presets_api`ï¼Œå®Œå–„ provider é”™è¯¯è¿”å›
+  - `frontend/src/api/types.ts`: æ–°å¢ `ProviderPreset`
+  - `frontend/src/api/client.ts`: æ–°å¢ `listProviderPresets`ï¼Œå¼ºåŒ–é”™è¯¯è§£æ
+  - `frontend/src/pages/SettingsCenter.tsx`: é¢„ç½®é€‰æ‹©ä¸è¡¨å•è‡ªåŠ¨å¡«å……
+  - `backend/tests/test_phase1_phase2_flow.py`: é¢„ç½®æ¥å£ä¸åŒä¾›åº”å•†å¤šç«¯ç‚¹æµ‹è¯•
+- éªŒè¯ç»“æœ
+  - å¾…æ‰§è¡Œ checkfixã€‚
+- å½±å“è¯„ä¼°
+  - ä»…æ‰©å±• provider ç®¡ç†èƒ½åŠ›ï¼Œä¸å½±å“æ—¢æœ‰ chat/kb/export ä¸»æµç¨‹ã€‚
+- æ–‡æ¡£æ›´æ–°ï¼ˆæ–°å¢/ä¿®æ”¹çš„ docs æ–‡ä»¶ä¸æ›´æ–°ç‚¹ï¼‰
+  - `doc/api/model_registry.md`: æ–°å¢é¢„ç½®æ¥å£ã€ç«¯ç‚¹æ¸…å•ã€å»é‡è§„åˆ™
+  - `docs/USER_GUIDE.md`: æ–°å¢é¢„ç½®/è‡ªå®šä¹‰æ“ä½œæ­¥éª¤ä¸ 401 æ’æŸ¥
 
-## ´ı×·×ÙÎÊÌâ
-- ºóĞø¿É¿¼ÂÇ¶Ô `provider_name` ºÍ `base_url` Ôö¼ÓÊı¾İ¿â²ãÎ¨Ò»Ô¼Êø£¬±ÜÃâ²¢·¢ÏÂÖØ¸´Ğ´Èë¡£
+## å¾…è¿½è¸ªé—®é¢˜
+- åç»­å¯è€ƒè™‘å¯¹ `provider_name` å’Œ `base_url` å¢åŠ æ•°æ®åº“å±‚å”¯ä¸€çº¦æŸï¼Œé¿å…å¹¶å‘ä¸‹é‡å¤å†™å…¥ã€‚
 
-## ¼¼ÊõÕ®Îñ¼ÇÂ¼
-- µ±Ç°Ô¤ÖÃ½öÓÃÓÚÅäÖÃÌî³ä£¬Î´Ö±½Ó¶Ô½ÓÕæÊµ¹©Ó¦ÉÌÄ£ĞÍ×Ô¶¯·¢ÏÖ¡£
+## æŠ€æœ¯å€ºåŠ¡è®°å½•
+- å½“å‰é¢„ç½®ä»…ç”¨äºé…ç½®å¡«å……ï¼Œæœªç›´æ¥å¯¹æ¥çœŸå®ä¾›åº”å•†æ¨¡å‹è‡ªåŠ¨å‘ç°ã€‚
