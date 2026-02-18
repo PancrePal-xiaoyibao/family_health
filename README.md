@@ -1,19 +1,33 @@
-﻿# Family Health Platform
+﻿<div align="center">
+  <img src="docs/assets/fhp-logo.svg" alt="Family Health Platform Logo" width="120" height="120" />
+  <h1>Family Health Platform</h1>
+  <p>高端家庭健康管理中台 · Family-grade Private Health Operations Console</p>
 
-家庭健康管理中台（内网优先），提供认证、聊天 Agent、MCP 工具配置、知识库构建、脱敏隔离与数据导出能力。
+  <p>
+    <img src="https://img.shields.io/badge/License-Apache%202.0-2ea44f" alt="License Apache 2.0" />
+    <img src="https://img.shields.io/badge/Backend-FastAPI%20%7C%20SQLAlchemy-0f766e" alt="Backend" />
+    <img src="https://img.shields.io/badge/Frontend-React%20%7C%20TypeScript-2563eb" alt="Frontend" />
+    <img src="https://img.shields.io/badge/Runtime-Windows%20LAN%20First-7c3aed" alt="Runtime" />
+    <img src="https://img.shields.io/badge/Security-PII%20Desensitization-b45309" alt="Security" />
+  </p>
+</div>
+
+## 产品定位
+面向高净值家庭与专业健康管理场景，提供以隐私安全为核心的健康数据治理、临床 AI 协作与知识库增强问答能力。
 
 ## 核心能力
-- 本地账号与多用户独立数据空间（每个账号可独立配置模型/MCP/知识库/导出）
-- 聊天中心：会话管理、附件上传、Agent 问答
-- MCP 中心：个人配置、连通性检测、QA 绑定
-- 知识库中心：构建/重建、检索、文档状态
-- 导出中心：多类型数据打包下载
-- 脱敏双域：`raw_vault` 与 `sanitized_workspace` 严格隔离
+- 多用户隔离：账号级独立模型、MCP、知识库、导出空间
+- 聊天中心：会话管理、附件上传、流式问答、知识库增强 QA
+- 模型中心：多供应商模型刷新与 Runtime Profile 管理
+- MCP 中心：命令式接入、模板导入、Agent 绑定
+- 知识库中心：文本/文档构建、检索策略与权重控制
+- 导出中心：多类型打包下载，支持脱敏域治理
+- 双域安全：`raw_vault` 与 `sanitized_workspace` 严格隔离
 
 ## 技术栈
-- Backend: FastAPI + SQLAlchemy + SQLite + pytest + ruff
-- Frontend: React + Vite + TypeScript + ESLint
-- 运行环境: Windows 家庭内网优先（也可迁移到 Linux）
+- Backend: FastAPI, SQLAlchemy, SQLite, httpx, pytest, ruff
+- Frontend: React, Vite, TypeScript
+- 工程化: npm, uv
 
 ## 快速启动
 ### 1) 后端
@@ -33,24 +47,12 @@ npm run dev
 # npm run dev:lan
 ```
 
-默认访问:
-- 前端: `http://localhost:5173`
-- 后端: `http://localhost:8000`
-- 内网访问前端（启用 `npm run dev:lan` 后）: `http://<你的局域网IP>:5173`
+默认访问地址:
+- Frontend: `http://localhost:5173`
+- Backend: `http://localhost:8000`
+- LAN Frontend（`npm run dev:lan`）: `http://<你的局域网IP>:5173`
 
-说明:
-- Windows 下若出现 `WinError 10013`，优先使用 `--host 127.0.0.1`。
-- 仅在需要内网其他设备访问时再切换为 `--host 0.0.0.0`。
-- 无默认管理员密码；可直接注册普通用户使用全部核心功能。
-
-## 联调验收（一键脚本）
-```powershell
-powershell -ExecutionPolicy Bypass -File .\scripts\acceptance_integration.ps1 -SkipFrontendCheck
-```
-
-脚本覆盖链路：登录 -> 配置 -> 对话 -> MCP -> KB -> 检索 -> 导出下载。
-
-## 检查命令
+## 质量检查
 ### Backend
 ```powershell
 cd backend
@@ -67,13 +69,10 @@ npm run build
 ```
 
 ## 文档入口
-- 产品与技术规范: `doc/PRD.md`
-- 开发部署: `doc/DEPLOYMENT.md`
-- API 文档: `doc/api/README.md`
 - 用户说明书: `docs/USER_GUIDE.md`
+- API 文档: `doc/api/README.md`
+- 部署说明: `doc/DEPLOYMENT.md`
 - 联调脚本说明: `scripts/README.md`
 
-## 当前状态
-- 后端阶段 0~4 已落地并通过测试
-- 前端阶段 5（四中心）已实现并可构建
-- 待推进：阶段 6 发布清单与 `.exe` 打包冒烟
+## 协议
+本项目采用 Apache License 2.0，详见 `LICENSE`。

@@ -1,4 +1,4 @@
-import { FormEvent, useEffect, useState } from "react";
+﻿import { FormEvent, useEffect, useState } from "react";
 
 import { api, ApiError } from "../api/client";
 import type { UserSession } from "../api/types";
@@ -13,13 +13,22 @@ const TEXT = {
     bootstrapFailed: "初始化失败，请稍后重试。",
     registerDone: "注册成功，请登录。",
     registerFailed: "注册失败，请稍后重试。",
-    titleLogin: "家庭内网登录",
+    titleLogin: "家庭健康中台登录",
     titleBootstrap: "首次 Owner 初始化",
     titleRegister: "新用户注册",
     descLogin: "登录后进入四中心工作区。",
     descBootstrap: "仅首次部署时使用，完成后请切回登录。",
-    descRegister: "新用户注册成功后即可登录。",
-    noDefaultOwner: "系统没有默认 Owner 密码，首次初始化时由你自行设置。",
+    descRegister: "注册成功后即可登录。",
+    noDefaultOwner: "系统没有默认 Owner 密码，首次初始化时请自行设置。",
+    heroBrand: "家庭健康中台",
+    heroTitle: "精准健康，私享治理",
+    heroDesc: "面向长期家庭健康战略、临床协作与隐私合规的数据智能控制台。",
+    heroMetric1Value: "24/7",
+    heroMetric1Label: "健康流程引擎",
+    heroMetric2Value: "多模型",
+    heroMetric2Label: "临床 AI 编排",
+    heroMetric3Value: "私有仓",
+    heroMetric3Label: "数据治理域",
     username: "用户名",
     password: "密码",
     displayName: "显示名称",
@@ -37,13 +46,22 @@ const TEXT = {
     bootstrapFailed: "Initialization failed. Try again later.",
     registerDone: "Registered. Please sign in.",
     registerFailed: "Registration failed. Try again later.",
-    titleLogin: "Family Intranet Sign-In",
+    titleLogin: "Family Health Platform Sign-In",
     titleBootstrap: "First-Time Owner Setup",
     titleRegister: "New User Sign-Up",
     descLogin: "Sign in to enter the workspace.",
     descBootstrap: "Use only once during first deployment.",
     descRegister: "Sign in after successful registration.",
     noDefaultOwner: "There is no default Owner password. Set it during first setup.",
+    heroBrand: "Family Health Console",
+    heroTitle: "Precision Health, Privately Curated",
+    heroDesc: "A refined operations console for long-horizon family health strategy, clinician collaboration, and confidential medical intelligence.",
+    heroMetric1Value: "24/7",
+    heroMetric1Label: "Medical Workflow",
+    heroMetric2Value: "Multi-Model",
+    heroMetric2Label: "Clinical AI Stack",
+    heroMetric3Value: "Private Vault",
+    heroMetric3Label: "Data Governance",
     username: "Username",
     password: "Password",
     displayName: "Display Name",
@@ -144,57 +162,85 @@ export function AuthPage({
 
   return (
     <div className="auth-shell">
-      <section className="auth-card">
-        <div className="row-between">
-          <h2>{title}</h2>
-          <div className="segmented">
-            <button type="button" className={locale === "zh" ? "" : "ghost"} onClick={() => onLocaleChange("zh")}>
-              中文
+      <div className="auth-backdrop" aria-hidden="true">
+        <span className="auth-orb auth-orb-a" />
+        <span className="auth-orb auth-orb-b" />
+        <span className="auth-orb auth-orb-c" />
+      </div>
+
+      <section className="auth-stage">
+        <aside className="auth-hero">
+          <p className="auth-kicker">{text.heroBrand}</p>
+          <h1>{text.heroTitle}</h1>
+          <p>{text.heroDesc}</p>
+          <div className="auth-metrics">
+            <article>
+              <strong>{text.heroMetric1Value}</strong>
+              <span>{text.heroMetric1Label}</span>
+            </article>
+            <article>
+              <strong>{text.heroMetric2Value}</strong>
+              <span>{text.heroMetric2Label}</span>
+            </article>
+            <article>
+              <strong>{text.heroMetric3Value}</strong>
+              <span>{text.heroMetric3Label}</span>
+            </article>
+          </div>
+        </aside>
+
+        <section className="auth-card">
+          <div className="row-between">
+            <h2>{title}</h2>
+            <div className="segmented">
+              <button type="button" className={locale === "zh" ? "" : "ghost"} onClick={() => onLocaleChange("zh")}>
+                中文
+              </button>
+              <button type="button" className={locale === "en" ? "" : "ghost"} onClick={() => onLocaleChange("en")}>
+                EN
+              </button>
+            </div>
+          </div>
+          <p>{desc}</p>
+          <p className="muted">{text.noDefaultOwner}</p>
+
+          <form onSubmit={mode === "login" ? submitLogin : mode === "bootstrap" ? submitBootstrap : submitRegister}>
+            <label>
+              {text.username}
+              <input value={username} onChange={(e) => setUsername(e.target.value)} required />
+            </label>
+
+            <label>
+              {text.password}
+              <input value={password} onChange={(e) => setPassword(e.target.value)} required type="password" />
+            </label>
+
+            {mode !== "login" && (
+              <label>
+                {text.displayName}
+                <input value={displayName} onChange={(e) => setDisplayName(e.target.value)} required />
+              </label>
+            )}
+
+            {message && <div className="inline-message">{message}</div>}
+
+            <button type="submit" disabled={loading}>
+              {loading ? text.processing : mode === "login" ? text.login : mode === "bootstrap" ? text.bootstrap : text.register}
             </button>
-            <button type="button" className={locale === "en" ? "" : "ghost"} onClick={() => onLocaleChange("en")}>
-              EN
+          </form>
+
+          <div className="actions">
+            <button type="button" className="ghost" onClick={() => setMode("register")}>
+              {text.goRegister}
+            </button>
+            <button type="button" className="ghost" onClick={() => setMode("login")}>
+              {text.goLogin}
+            </button>
+            <button type="button" className="ghost" onClick={() => setMode("bootstrap")}>
+              {text.initOwner}
             </button>
           </div>
-        </div>
-        <p>{desc}</p>
-        <p className="muted">{text.noDefaultOwner}</p>
-
-        <form onSubmit={mode === "login" ? submitLogin : mode === "bootstrap" ? submitBootstrap : submitRegister}>
-          <label>
-            {text.username}
-            <input value={username} onChange={(e) => setUsername(e.target.value)} required />
-          </label>
-
-          <label>
-            {text.password}
-            <input value={password} onChange={(e) => setPassword(e.target.value)} required type="password" />
-          </label>
-
-          {mode !== "login" && (
-            <label>
-              {text.displayName}
-              <input value={displayName} onChange={(e) => setDisplayName(e.target.value)} required />
-            </label>
-          )}
-
-          {message && <div className="inline-message">{message}</div>}
-
-          <button type="submit" disabled={loading}>
-            {loading ? text.processing : mode === "login" ? text.login : mode === "bootstrap" ? text.bootstrap : text.register}
-          </button>
-        </form>
-
-        <div className="actions">
-          <button type="button" className="ghost" onClick={() => setMode("register")}>
-            {text.goRegister}
-          </button>
-          <button type="button" className="ghost" onClick={() => setMode("login")}>
-            {text.goLogin}
-          </button>
-          <button type="button" className="ghost" onClick={() => setMode("bootstrap")}>
-            {text.initOwner}
-          </button>
-        </div>
+        </section>
       </section>
     </div>
   );

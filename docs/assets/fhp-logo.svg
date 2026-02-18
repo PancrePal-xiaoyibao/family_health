@@ -1,0 +1,17 @@
+﻿<svg width="256" height="256" viewBox="0 0 256 256" fill="none" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Family Health Platform logo">
+  <defs>
+    <linearGradient id="fhp_bg" x1="40" y1="24" x2="216" y2="232" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#1F8A78"/>
+      <stop offset="1" stop-color="#11536F"/>
+    </linearGradient>
+    <linearGradient id="fhp_core" x1="128" y1="78" x2="128" y2="202" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#F4F8F2"/>
+      <stop offset="1" stop-color="#DCEDE7"/>
+    </linearGradient>
+  </defs>
+  <rect x="12" y="12" width="232" height="232" rx="48" fill="url(#fhp_bg)"/>
+  <path d="M64 140C64 112 86 90 114 90C125 90 135 94 143 101C151 94 161 90 172 90C200 90 222 112 222 140C222 181 184 210 143 224C102 210 64 181 64 140Z" fill="url(#fhp_core)"/>
+  <path d="M126 114V136H104V152H126V174H142V152H164V136H142V114H126Z" fill="#1F8A78"/>
+  <circle cx="52" cy="52" r="8" fill="#EECF94" fill-opacity="0.6"/>
+  <circle cx="202" cy="62" r="6" fill="#D6F2EA" fill-opacity="0.65"/>
+</svg>
