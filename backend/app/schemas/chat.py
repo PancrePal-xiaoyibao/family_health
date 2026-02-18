@@ -2,14 +2,18 @@ from pydantic import BaseModel, Field
 
 
 class ChatSessionCreateRequest(BaseModel):
-    title: str = Field(default="新对话", min_length=1, max_length=120)
+    title: str = Field(default="New Chat", min_length=1, max_length=120)
     runtime_profile_id: str | None = None
+    role_id: str | None = None
+    background_prompt: str | None = Field(default=None, max_length=20000)
     default_enabled_mcp_ids: list[str] = Field(default_factory=list)
 
 
 class ChatSessionUpdateRequest(BaseModel):
     title: str | None = Field(default=None, min_length=1, max_length=120)
     runtime_profile_id: str | None = None
+    role_id: str | None = None
+    background_prompt: str | None = Field(default=None, max_length=20000)
     archived: bool | None = None
     default_enabled_mcp_ids: list[str] | None = None
 

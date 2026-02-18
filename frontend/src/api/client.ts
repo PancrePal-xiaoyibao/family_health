@@ -1,6 +1,7 @@
 ﻿import type {
   ApiEnvelope,
   AuthLoginData,
+  AgentRole,
   ChatMessage,
   ChatSession,
   ExportJob,
@@ -152,7 +153,13 @@ export const api = {
   bindQaMcpServers: (mcp_server_ids: string[], token: string): Promise<{ items: unknown[] }> =>
     request("/mcp/bindings/qa", { method: "PUT", body: JSON.stringify({ mcp_server_ids }) }, token),
   createChatSession: (
-    payload: { title: string; runtime_profile_id: string | null; default_enabled_mcp_ids: string[] },
+    payload: {
+      title: string;
+      runtime_profile_id: string | null;
+      role_id?: string | null;
+      background_prompt?: string | null;
+      default_enabled_mcp_ids: string[];
+    },
     token: string,
   ): Promise<ChatSession> => request("/chat/sessions", { method: "POST", body: JSON.stringify(payload) }, token),
   listChatSessions: (token: string): Promise<{ total: number; items: ChatSession[] }> => request("/chat/sessions", {}, token),
@@ -161,11 +168,16 @@ export const api = {
     payload: Partial<{
       title: string;
       runtime_profile_id: string | null;
+      role_id: string | null;
+      background_prompt: string | null;
       archived: boolean;
       default_enabled_mcp_ids: string[];
     }>,
     token: string,
   ): Promise<ChatSession> => request(`/chat/sessions/${sessionId}`, { method: "PATCH", body: JSON.stringify(payload) }, token),
+  listAgentRoles: (token: string): Promise<{ items: AgentRole[] }> => request("/agent/roles", {}, token),
+  getAgentRole: (roleId: string, token: string): Promise<{ id: string; prompt: string }> =>
+    request(`/agent/roles/${roleId}`, {}, token),
   listMessages: (sessionId: string, token: string): Promise<{ items: ChatMessage[] }> =>
     request(`/chat/sessions/${sessionId}/messages`, {}, token),
   uploadAttachment: async (sessionId: string, file: File, token: string): Promise<{ id: string }> => {

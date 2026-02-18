@@ -5,11 +5,15 @@ from collections.abc import Iterable
 from sqlalchemy.engine import Engine
 
 
-_SQLITE_USER_SCOPED_COLUMNS: dict[str, tuple[str, ...]] = {
-    "model_providers": ("user_id",),
-    "llm_runtime_profiles": ("user_id",),
-    "mcp_servers": ("user_id",),
-    "agent_mcp_bindings": ("user_id",),
+_SQLITE_COMPAT_COLUMNS: dict[str, dict[str, str]] = {
+    "model_providers": {"user_id": "VARCHAR(36)"},
+    "llm_runtime_profiles": {"user_id": "VARCHAR(36)"},
+    "mcp_servers": {"user_id": "VARCHAR(36)"},
+    "agent_mcp_bindings": {"user_id": "VARCHAR(36)"},
+    "chat_sessions": {
+        "role_id": "VARCHAR(120)",
+        "background_prompt": "TEXT",
+    },
 }
 
 
@@ -18,14 +22,21 @@ def _existing_columns(conn, table_name: str) -> set[str]:
     return {row[1] for row in rows}
 
 
-def _add_missing_columns(conn, table_name: str, missing_columns: Iterable[str]) -> None:
+def _add_missing_columns(
+    conn,
+    table_name: str,
+    missing_columns: Iterable[str],
+    column_types: dict[str, str],
+) -> None:
     for column_name in missing_columns:
+        column_type = column_types[column_name]
         conn.exec_driver_sql(
-            f"ALTER TABLE {table_name} ADD COLUMN {column_name} VARCHAR(36)"
+            f"ALTER TABLE {table_name} ADD COLUMN {column_name} {column_type}"
         )
-        conn.exec_driver_sql(
-            f"CREATE INDEX IF NOT EXISTS idx_{table_name}_{column_name} ON {table_name} ({column_name})"
-        )
+        if column_name.endswith("_id") or column_name == "user_id":
+            conn.exec_driver_sql(
+                f"CREATE INDEX IF NOT EXISTS idx_{table_name}_{column_name} ON {table_name} ({column_name})"
+            )
 
 
 def run_startup_migrations(engine: Engine, db_url: str) -> None:
@@ -33,10 +44,10 @@ def run_startup_migrations(engine: Engine, db_url: str) -> None:
         return
 
     with engine.begin() as conn:
-        for table_name, required_columns in _SQLITE_USER_SCOPED_COLUMNS.items():
+        for table_name, column_types in _SQLITE_COMPAT_COLUMNS.items():
             existing = _existing_columns(conn, table_name)
             if not existing:
                 continue
-            missing = [column for column in required_columns if column not in existing]
+            missing = [column for column in column_types if column not in existing]
             if missing:
-                _add_missing_columns(conn, table_name, missing)
+                _add_missing_columns(conn, table_name, missing, column_types)

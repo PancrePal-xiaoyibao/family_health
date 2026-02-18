@@ -69,8 +69,16 @@ export type ChatSession = {
   title: string;
   archived: boolean;
   runtime_profile_id: string | null;
+  role_id: string | null;
+  background_prompt: string | null;
   default_enabled_mcp_ids: string[];
   updated_at: string;
+};
+
+export type AgentRole = {
+  id: string;
+  name: string;
+  updated_at: number;
 };
 
 export type ChatMessage = {

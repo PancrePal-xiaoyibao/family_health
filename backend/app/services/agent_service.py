@@ -1,7 +1,15 @@
 from __future__ import annotations
 
+import json
+
+import httpx
+
 from app.core.config import settings
+from app.core.crypto import decrypt_text
 from app.models.chat_message import ChatMessage
+from app.models.llm_runtime_profile import LlmRuntimeProfile
+from app.models.model_catalog import ModelCatalog
+from app.models.model_provider import ModelProvider
 from app.services.chat_service import (
     ChatError,
     add_message,
@@ -10,29 +18,207 @@ from app.services.chat_service import (
     get_session_for_user,
 )
 from app.services.mcp_service import get_effective_server_ids, route_tools
+from app.services.role_service import get_role_prompt
 
 
 def _trim_history(messages: list[dict]) -> list[dict]:
     return messages[-settings.chat_context_message_limit :]
 
 
-def _compose_answer(
-    query: str,
-    background_prompt: str | None,
-    history_count: int,
-    attachment_count: int,
-    mcp_count: int,
-) -> str:
-    normalized_query = query.strip() or "（未提供文本问题，仅基于附件）"
-    bg_hint = (
-        f"\n角色上下文: {background_prompt.strip()}"
-        if background_prompt and background_prompt.strip()
-        else ""
+def _load_params(profile: LlmRuntimeProfile) -> dict:
+    try:
+        data = json.loads(profile.params_json or "{}")
+    except json.JSONDecodeError:
+        return {}
+    return data if isinstance(data, dict) else {}
+
+
+def _resolve_runtime_profile(db, user_id: str, runtime_profile_id: str | None, session) -> LlmRuntimeProfile:
+    chosen_id = runtime_profile_id or session.runtime_profile_id
+    query = db.query(LlmRuntimeProfile).filter(LlmRuntimeProfile.user_id == user_id)
+    if chosen_id:
+        profile = query.filter(LlmRuntimeProfile.id == chosen_id).first()
+        if not profile:
+            raise ChatError(7001, "Runtime profile not found")
+        return profile
+
+    profile = query.filter(LlmRuntimeProfile.is_default.is_(True)).first()
+    if not profile:
+        raise ChatError(7002, "Please configure a default runtime profile first")
+    return profile
+
+
+def _resolve_model_provider(db, user_id: str, profile: LlmRuntimeProfile) -> tuple[ModelCatalog, ModelProvider]:
+    if not profile.llm_model_id:
+        raise ChatError(7003, "Runtime profile has no llm model")
+
+    model = db.query(ModelCatalog).filter(ModelCatalog.id == profile.llm_model_id).first()
+    if not model:
+        raise ChatError(7004, "LLM model not found in model catalog")
+
+    provider = (
+        db.query(ModelProvider)
+        .filter(
+            ModelProvider.id == model.provider_id,
+            ModelProvider.user_id == user_id,
+            ModelProvider.enabled.is_(True),
+        )
+        .first()
     )
+    if not provider:
+        raise ChatError(7005, "Model provider not found or disabled")
+    return model, provider
+
+
+def _build_context_suffix(attachment_texts: list[str], mcp_results: list[dict]) -> str:
+    blocks: list[str] = []
+    if attachment_texts:
+        joined = "\n\n".join(attachment_texts)
+        blocks.append(f"Sanitized attachment context:\n{joined}")
+    if mcp_results:
+        tool_text = "\n".join(str(item.get("output", "")) for item in mcp_results)
+        blocks.append(f"MCP tool outputs:\n{tool_text}")
+    return "\n\n" + "\n\n".join(blocks) if blocks else ""
+
+
+def _role_name(role: str) -> str:
+    return "assistant" if role == "assistant" else "user"
+
+
+def _openai_compatible_call(
+    url: str,
+    api_key: str,
+    model_name: str,
+    system_prompt: str,
+    messages: list[dict],
+    params: dict,
+) -> str:
+    payload_messages = []
+    if system_prompt.strip():
+        payload_messages.append({"role": "system", "content": system_prompt})
+    payload_messages.extend(messages)
+
+    payload: dict = {"model": model_name, "messages": payload_messages}
+    for key in ["temperature", "top_p", "max_tokens"]:
+        if key in params:
+            payload[key] = params[key]
+
+    headers = {
+        "Authorization": f"Bearer {api_key}",
+        "Content-Type": "application/json",
+    }
+
+    with httpx.Client(timeout=60) as client:
+        resp = client.post(url, json=payload, headers=headers)
+    if resp.status_code >= 400:
+        raise ChatError(7006, f"LLM request failed: HTTP {resp.status_code} {resp.text[:200]}")
+
+    data = resp.json()
+    choices = data.get("choices") or []
+    if not choices:
+        raise ChatError(7007, "LLM response has no choices")
+    message = choices[0].get("message") or {}
+    content = message.get("content")
+    if isinstance(content, str):
+        return content.strip()
+    raise ChatError(7008, "LLM response content missing")
+
+
+def _gemini_call(
+    base_url: str,
+    api_key: str,
+    model_name: str,
+    system_prompt: str,
+    messages: list[dict],
+    params: dict,
+) -> str:
+    root = base_url.rstrip("/")
+    url = f"{root}/{model_name}:generateContent?key={api_key}"
+
+    contents = []
+    for item in messages:
+        role = "model" if item["role"] == "assistant" else "user"
+        contents.append({"role": role, "parts": [{"text": item["content"]}]})
+
+    payload: dict = {"contents": contents}
+    if system_prompt.strip():
+        payload["systemInstruction"] = {"parts": [{"text": system_prompt}]}
+
+    generation_config = {}
+    if "temperature" in params:
+        generation_config["temperature"] = params["temperature"]
+    if "top_p" in params:
+        generation_config["topP"] = params["top_p"]
+    if "max_tokens" in params:
+        generation_config["maxOutputTokens"] = params["max_tokens"]
+    if generation_config:
+        payload["generationConfig"] = generation_config
+
+    with httpx.Client(timeout=60) as client:
+        resp = client.post(url, json=payload)
+    if resp.status_code >= 400:
+        raise ChatError(7006, f"Gemini request failed: HTTP {resp.status_code} {resp.text[:200]}")
+
+    data = resp.json()
+    candidates = data.get("candidates") or []
+    if not candidates:
+        raise ChatError(7007, "Gemini response has no candidates")
+    parts = candidates[0].get("content", {}).get("parts") or []
+    text = "\n".join(part.get("text", "") for part in parts if isinstance(part, dict)).strip()
+    if not text:
+        raise ChatError(7008, "Gemini response content missing")
+    return text
+
+
+def _run_llm(
+    provider: ModelProvider,
+    model: ModelCatalog,
+    params: dict,
+    system_prompt: str,
+    messages: list[dict],
+) -> str:
+    api_key = decrypt_text(provider.api_key_encrypted)
+    provider_name = provider.provider_name.lower()
+
+    if "gemini" in provider_name:
+        return _gemini_call(
+            base_url=provider.base_url,
+            api_key=api_key,
+            model_name=model.model_name,
+            system_prompt=system_prompt,
+            messages=messages,
+            params=params,
+        )
+
+    return _openai_compatible_call(
+        url=provider.base_url,
+        api_key=api_key,
+        model_name=model.model_name,
+        system_prompt=system_prompt,
+        messages=messages,
+        params=params,
+    )
+
+
+def _effective_system_prompt(session, request_background_prompt: str | None) -> str:
+    if request_background_prompt and request_background_prompt.strip():
+        return request_background_prompt.strip()
+    if session.background_prompt and session.background_prompt.strip():
+        return session.background_prompt.strip()
+    if session.role_id:
+        try:
+            return get_role_prompt(session.role_id)
+        except FileNotFoundError:
+            return ""
+    return ""
+
+
+def _fallback_answer(query: str, attachment_count: int, mcp_count: int) -> str:
+    normalized = query.strip() or "(attachment-only mode)"
     return (
-        f"已收到你的问题：{normalized_query}{bg_hint}\n"
-        f"上下文消息数：{history_count}，附件片段数：{attachment_count}，MCP启用数：{mcp_count}。\n"
-        "当前为本地最小 Agent 回答链路，后续可替换为真实 LLM 调用。"
+        f"Received your question: {normalized}\n"
+        f"Attachment chunks: {attachment_count}, MCP tools: {mcp_count}.\n"
+        "No active runtime/provider configured. Returned fallback local answer."
     )
 
 
@@ -51,9 +237,7 @@ def run_agent_qa(
     if not normalized_query and not attachments_ids:
         raise ChatError(4005, "Please provide text query or upload attachments")
 
-    message_content = normalized_query or "（仅附件模式）"
-    if background_prompt and background_prompt.strip():
-        message_content = f"[SYSTEM]{background_prompt.strip()}\n{message_content}"
+    message_content = normalized_query or "(attachment-only mode)"
     add_message(db, session_id=session_id, user_id=user.id, role="user", content=message_content)
 
     history = (
@@ -62,7 +246,7 @@ def run_agent_qa(
         .order_by(ChatMessage.created_at.asc())
         .all()
     )
-    history_payload = [{"role": m.role, "content": m.content} for m in history]
+    history_payload = [{"role": _role_name(m.role), "content": m.content} for m in history]
     trimmed = _trim_history(history_payload)
 
     attachment_texts: list[str] = []
@@ -83,13 +267,29 @@ def run_agent_qa(
     )
     mcp_out = route_tools(db, user_id=user.id, enabled_server_ids=effective_mcp_ids, query=query)
 
-    answer = _compose_answer(
-        query=normalized_query,
-        background_prompt=background_prompt,
-        history_count=len(trimmed),
-        attachment_count=len(attachment_texts),
-        mcp_count=len(mcp_out["results"]),
-    )
+    context_suffix = _build_context_suffix(attachment_texts, mcp_out["results"])
+    if trimmed and trimmed[-1]["role"] == "user":
+        trimmed[-1] = {"role": "user", "content": trimmed[-1]["content"] + context_suffix}
+
+    system_prompt = _effective_system_prompt(session, background_prompt)
+
+    try:
+        profile = _resolve_runtime_profile(db, user.id, runtime_profile_id, session)
+        model, provider = _resolve_model_provider(db, user.id, profile)
+        params = _load_params(profile)
+        answer = _run_llm(
+            provider=provider,
+            model=model,
+            params=params,
+            system_prompt=system_prompt,
+            messages=trimmed,
+        )
+    except ChatError as exc:
+        if exc.code in {7001, 7002, 7003, 7004, 7005}:
+            answer = _fallback_answer(normalized_query, len(attachment_texts), len(mcp_out["results"]))
+        else:
+            raise
+
     assistant_msg = add_message(
         db,
         session_id=session_id,

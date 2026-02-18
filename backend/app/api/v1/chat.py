@@ -41,6 +41,8 @@ def create_session_api(
         user_id=user.id,
         title=payload.title,
         runtime_profile_id=payload.runtime_profile_id,
+        role_id=payload.role_id,
+        background_prompt=payload.background_prompt,
         default_enabled_mcp_ids=payload.default_enabled_mcp_ids,
     )
     return ok(session_to_dict(row), trace_id)
@@ -86,6 +88,8 @@ def update_session_api(
             user_id=user.id,
             title=payload.title,
             runtime_profile_id=payload.runtime_profile_id,
+            role_id=payload.role_id,
+            background_prompt=payload.background_prompt,
             archived=payload.archived,
             default_enabled_mcp_ids=payload.default_enabled_mcp_ids,
         )

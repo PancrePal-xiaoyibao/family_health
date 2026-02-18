@@ -20,3 +20,7 @@ def raw_vault_root() -> Path:
 
 def sanitized_workspace_root() -> Path:
     return _ensure(data_root() / settings.sanitized_workspace_dir)
+
+
+def role_library_root() -> Path:
+    return _ensure(Path(settings.role_library_dir).resolve())

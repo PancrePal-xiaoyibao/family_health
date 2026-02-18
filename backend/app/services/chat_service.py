@@ -46,6 +46,8 @@ def session_to_dict(row: ChatSession) -> dict:
         "title": row.title,
         "archived": row.archived,
         "runtime_profile_id": row.runtime_profile_id,
+        "role_id": row.role_id,
+        "background_prompt": row.background_prompt,
         "default_enabled_mcp_ids": _load_mcp_ids(row.default_enabled_mcp_ids_json),
         "updated_at": row.updated_at.isoformat(),
     }
@@ -56,6 +58,8 @@ def create_session(
     user_id: str,
     title: str,
     runtime_profile_id: str | None,
+    role_id: str | None,
+    background_prompt: str | None,
     default_enabled_mcp_ids: list[str],
 ) -> ChatSession:
     row = ChatSession(
@@ -63,6 +67,8 @@ def create_session(
         user_id=user_id,
         title=title,
         runtime_profile_id=runtime_profile_id,
+        role_id=role_id,
+        background_prompt=background_prompt,
         default_enabled_mcp_ids_json=_dump_mcp_ids(default_enabled_mcp_ids),
     )
     db.add(row)
@@ -122,6 +128,8 @@ def update_session(
     user_id: str,
     title: str | None,
     runtime_profile_id: str | None,
+    role_id: str | None,
+    background_prompt: str | None,
     archived: bool | None,
     default_enabled_mcp_ids: list[str] | None,
 ) -> ChatSession:
@@ -130,6 +138,10 @@ def update_session(
         row.title = title
     if runtime_profile_id is not None:
         row.runtime_profile_id = runtime_profile_id
+    if role_id is not None:
+        row.role_id = role_id
+    if background_prompt is not None:
+        row.background_prompt = background_prompt
     if archived is not None:
         row.archived = archived
     if default_enabled_mcp_ids is not None:

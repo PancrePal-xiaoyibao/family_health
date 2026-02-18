@@ -16,6 +16,7 @@ class Settings(BaseSettings):
     mcp_max_parallel_tools: int = 3
     mcp_tool_timeout_ms: int = 8000
     mcp_total_budget_ms: int = 15000
+    role_library_dir: str = "./app/roles"
 
     model_config = SettingsConfigDict(env_prefix="FH_", env_file=".env", extra="ignore")
 
