@@ -13,6 +13,9 @@ _SQLITE_COMPAT_COLUMNS: dict[str, dict[str, str]] = {
     "chat_sessions": {
         "role_id": "VARCHAR(120)",
         "background_prompt": "TEXT",
+        "reasoning_enabled": "BOOLEAN",
+        "reasoning_budget": "INTEGER",
+        "show_reasoning": "BOOLEAN",
     },
 }
 
@@ -33,6 +36,8 @@ def _add_missing_columns(
         conn.exec_driver_sql(
             f"ALTER TABLE {table_name} ADD COLUMN {column_name} {column_type}"
         )
+        if table_name == "chat_sessions" and column_name == "show_reasoning":
+            conn.exec_driver_sql("UPDATE chat_sessions SET show_reasoning = 1 WHERE show_reasoning IS NULL")
         if column_name.endswith("_id") or column_name == "user_id":
             conn.exec_driver_sql(
                 f"CREATE INDEX IF NOT EXISTS idx_{table_name}_{column_name} ON {table_name} ({column_name})"

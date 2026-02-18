@@ -158,11 +158,16 @@ export const api = {
       runtime_profile_id: string | null;
       role_id?: string | null;
       background_prompt?: string | null;
+      reasoning_enabled?: boolean | null;
+      reasoning_budget?: number | null;
+      show_reasoning?: boolean;
       default_enabled_mcp_ids: string[];
     },
     token: string,
   ): Promise<ChatSession> => request("/chat/sessions", { method: "POST", body: JSON.stringify(payload) }, token),
   listChatSessions: (token: string): Promise<{ total: number; items: ChatSession[] }> => request("/chat/sessions", {}, token),
+  deleteChatSession: (sessionId: string, token: string): Promise<{ deleted: boolean }> =>
+    request(`/chat/sessions/${sessionId}`, { method: "DELETE" }, token),
   updateChatSession: (
     sessionId: string,
     payload: Partial<{
@@ -170,11 +175,40 @@ export const api = {
       runtime_profile_id: string | null;
       role_id: string | null;
       background_prompt: string | null;
+      reasoning_enabled: boolean | null;
+      reasoning_budget: number | null;
+      show_reasoning: boolean;
       archived: boolean;
       default_enabled_mcp_ids: string[];
     }>,
     token: string,
   ): Promise<ChatSession> => request(`/chat/sessions/${sessionId}`, { method: "PATCH", body: JSON.stringify(payload) }, token),
+  copyChatSession: (sessionId: string, token: string): Promise<ChatSession> =>
+    request(`/chat/sessions/${sessionId}/copy`, { method: "POST" }, token),
+  branchChatSession: (sessionId: string, token: string): Promise<ChatSession> =>
+    request(`/chat/sessions/${sessionId}/branch`, { method: "POST" }, token),
+  exportChatSession: async (sessionId: string, format: "json" | "md", token: string): Promise<Blob> => {
+    const response = await fetch(`${API_PREFIX}/chat/sessions/${sessionId}/export?fmt=${format}`, {
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    if (!response.ok) {
+      throw new Error(`Export failed: ${response.status}`);
+    }
+    return response.blob();
+  },
+  bulkExportChatSessions: async (session_ids: string[], token: string): Promise<Blob> => {
+    const response = await fetch(`${API_PREFIX}/chat/sessions/bulk-export`, {
+      method: "POST",
+      headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
+      body: JSON.stringify({ session_ids }),
+    });
+    if (!response.ok) {
+      throw new Error(`Bulk export failed: ${response.status}`);
+    }
+    return response.blob();
+  },
+  bulkDeleteChatSessions: (session_ids: string[], token: string): Promise<{ deleted: number }> =>
+    request("/chat/sessions/bulk-delete", { method: "POST", body: JSON.stringify({ session_ids }) }, token),
   listAgentRoles: (token: string): Promise<{ items: AgentRole[] }> => request("/agent/roles", {}, token),
   getAgentRole: (roleId: string, token: string): Promise<{ id: string; prompt: string }> =>
     request(`/agent/roles/${roleId}`, {}, token),
@@ -216,6 +250,52 @@ export const api = {
     context: { enabled_mcp_ids: string[]; history_messages: number; attachment_chunks: number };
     tool_warnings: string[];
   }> => request("/agent/qa", { method: "POST", body: JSON.stringify(payload) }, token),
+  qaStream: async (
+    payload: {
+      session_id: string;
+      query?: string;
+      background_prompt?: string;
+      enabled_mcp_ids?: string[];
+      runtime_profile_id?: string | null;
+      attachments_ids?: string[];
+    },
+    token: string,
+    onEvent: (event: { type: string; delta?: string; assistant_answer?: string; reasoning_content?: string; message?: string }) => void,
+  ): Promise<void> => {
+    const response = await fetch(`${API_PREFIX}/agent/qa/stream`, {
+      method: "POST",
+      headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
+      body: JSON.stringify(payload),
+    });
+    if (!response.ok || !response.body) {
+      throw new Error(`Stream failed: ${response.status}`);
+    }
+    const reader = response.body.getReader();
+    const decoder = new TextDecoder("utf-8");
+    let buffer = "";
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) {
+        break;
+      }
+      buffer += decoder.decode(value, { stream: true });
+      const chunks = buffer.split("\n\n");
+      buffer = chunks.pop() ?? "";
+      for (const chunk of chunks) {
+        const line = chunk
+          .split("\n")
+          .find((x) => x.startsWith("data:"));
+        if (!line) {
+          continue;
+        }
+        const raw = line.slice(5).trim();
+        if (!raw) {
+          continue;
+        }
+        onEvent(JSON.parse(raw) as { type: string; delta?: string; assistant_answer?: string; reasoning_content?: string; message?: string });
+      }
+    }
+  },
   createKb: (
     payload: {
       name: string;

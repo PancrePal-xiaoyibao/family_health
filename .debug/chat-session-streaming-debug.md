@@ -1,0 +1,46 @@
+﻿# Chat Session Ops + Streaming Reasoning Debug Record
+
+## Metadata
+- Module: chat-session-streaming
+- Created: 2026-02-18
+- Updated: 2026-02-18
+- Related files: `backend/app/api/v1/chat.py`, `backend/app/services/chat_service.py`, `backend/app/models/chat_session.py`, `backend/app/api/v1/agent.py`, `backend/app/services/agent_service.py`, `backend/app/core/schema_migration.py`, `frontend/src/pages/ChatCenter.tsx`, `frontend/src/api/client.ts`, `frontend/src/api/types.ts`, `doc/api/chat.md`, `doc/api/agent.md`, `docs/USER_GUIDE.md`
+
+## Runtime Context
+- Environment: Local Windows
+- Checkfix: backend `uv run ruff check .` + `uv run pytest`; frontend `npm run build`
+
+## Context Graph
+- Chat session now stores role + reasoning controls.
+- Agent supports non-stream + SSE stream modes.
+- Frontend chat center calls stream API and renders answer/reasoning incrementally.
+- Session list now supports single and bulk operations.
+
+## Debug History
+### [2026-02-18 18:30] Session Ops + Stream CoT
+- Issue
+  - Missing session operations (copy/export/branch/bulk actions).
+  - Need stream output and model reasoning controls at session level.
+- Root cause
+  - API only had basic CRUD for sessions.
+  - Agent endpoint only returned full response after completion.
+- Solution
+  - Added chat session operation APIs: copy, branch, export (json/md), bulk export (zip), bulk delete.
+  - Added session-level reasoning fields: `reasoning_enabled`, `reasoning_budget`, `show_reasoning`.
+  - Added `/api/v1/agent/qa/stream` SSE endpoint.
+  - Implemented provider calls for Gemini + OpenAI-compatible with reasoning parameter mapping.
+  - Implemented frontend streaming renderer and session operation actions.
+- Validation
+  - `uv run ruff check .` passed
+  - `uv run pytest` passed (10 passed)
+  - `npm run build` passed
+- Impact
+  - No breaking API removals, additive endpoints and fields only.
+- Docs updated
+  - `doc/api/chat.md`
+  - `doc/api/agent.md`
+  - `docs/USER_GUIDE.md`
+
+## Follow-ups
+- Add pagination/search UI for large session lists.
+- Add cancellation control for in-flight stream.

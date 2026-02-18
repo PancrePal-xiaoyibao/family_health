@@ -5,6 +5,18 @@
 - `GET /api/v1/chat/sessions?page=1&page_size=20&query=&archived=`
 - `PATCH /api/v1/chat/sessions/{id}`
 - `DELETE /api/v1/chat/sessions/{id}`（软删除）
+- `POST /api/v1/chat/sessions/{id}/copy`
+- `POST /api/v1/chat/sessions/{id}/branch`
+- `GET /api/v1/chat/sessions/{id}/export?fmt=json|md`
+- `POST /api/v1/chat/sessions/bulk-export`
+- `POST /api/v1/chat/sessions/bulk-delete`
+
+新增会话参数：
+- `role_id`
+- `background_prompt`
+- `reasoning_enabled`（`null/true/false`）
+- `reasoning_budget`（整数）
+- `show_reasoning`（是否回传 reasoning 流）
 
 ## 2) 消息管理
 - `POST /api/v1/chat/sessions/{id}/messages`

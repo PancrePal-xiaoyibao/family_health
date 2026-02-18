@@ -6,6 +6,9 @@ class ChatSessionCreateRequest(BaseModel):
     runtime_profile_id: str | None = None
     role_id: str | None = None
     background_prompt: str | None = Field(default=None, max_length=20000)
+    reasoning_enabled: bool | None = None
+    reasoning_budget: int | None = Field(default=None, ge=0, le=131072)
+    show_reasoning: bool = True
     default_enabled_mcp_ids: list[str] = Field(default_factory=list)
 
 
@@ -14,8 +17,15 @@ class ChatSessionUpdateRequest(BaseModel):
     runtime_profile_id: str | None = None
     role_id: str | None = None
     background_prompt: str | None = Field(default=None, max_length=20000)
+    reasoning_enabled: bool | None = None
+    reasoning_budget: int | None = Field(default=None, ge=0, le=131072)
+    show_reasoning: bool | None = None
     archived: bool | None = None
     default_enabled_mcp_ids: list[str] | None = None
+
+
+class ChatBulkSessionRequest(BaseModel):
+    session_ids: list[str] = Field(default_factory=list)
 
 
 class ChatMessageCreateRequest(BaseModel):

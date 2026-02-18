@@ -3,6 +3,7 @@
 - `GET /api/v1/agent/roles`（读取后端 Markdown 角色库）
 - `GET /api/v1/agent/roles/{role_id}`（读取角色提示词全文）
 - `POST /api/v1/agent/qa`
+- `POST /api/v1/agent/qa/stream`（SSE）
 
 请求：
 ```json
@@ -25,3 +26,14 @@
 6. 并发执行 MCP，失败降级为 `tool_warnings`。
 7. 优先按 Runtime Profile 真实调用已配置 Provider（Gemini/OpenAI 兼容）；未配置时回退本地兜底回答。
 8. 生成 assistant 回答并入库。
+
+流式事件格式（`qa/stream`）：
+- `{"type":"message","delta":"..."}`：回答增量
+- `{"type":"reasoning","delta":"..."}`：思维链增量（当会话 `show_reasoning=true` 且模型支持）
+- `{"type":"done","assistant_message_id":"...","assistant_answer":"...","reasoning_content":"..."}`：结束
+- `{"type":"error","message":"..."}`：失败
+
+思维链参数来源（会话级）：
+- `reasoning_enabled`：`null/true/false`
+- `reasoning_budget`：思维预算（Gemini 映射到 `thinkingBudget`；DeepSeek/兼容路径映射到 `max_tokens` 兜底）
+- `show_reasoning`：是否向前端输出 reasoning 事件

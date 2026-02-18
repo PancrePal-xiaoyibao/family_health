@@ -71,6 +71,9 @@ export type ChatSession = {
   runtime_profile_id: string | null;
   role_id: string | null;
   background_prompt: string | null;
+  reasoning_enabled: boolean | null;
+  reasoning_budget: number | null;
+  show_reasoning: boolean;
   default_enabled_mcp_ids: string[];
   updated_at: string;
 };

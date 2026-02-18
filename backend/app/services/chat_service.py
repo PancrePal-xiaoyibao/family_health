@@ -1,7 +1,9 @@
 from __future__ import annotations
 
 import json
+import zipfile
 from datetime import datetime, timezone
+from io import BytesIO
 from pathlib import Path
 from uuid import uuid4
 
@@ -48,6 +50,9 @@ def session_to_dict(row: ChatSession) -> dict:
         "runtime_profile_id": row.runtime_profile_id,
         "role_id": row.role_id,
         "background_prompt": row.background_prompt,
+        "reasoning_enabled": row.reasoning_enabled,
+        "reasoning_budget": row.reasoning_budget,
+        "show_reasoning": row.show_reasoning,
         "default_enabled_mcp_ids": _load_mcp_ids(row.default_enabled_mcp_ids_json),
         "updated_at": row.updated_at.isoformat(),
     }
@@ -60,6 +65,9 @@ def create_session(
     runtime_profile_id: str | None,
     role_id: str | None,
     background_prompt: str | None,
+    reasoning_enabled: bool | None,
+    reasoning_budget: int | None,
+    show_reasoning: bool,
     default_enabled_mcp_ids: list[str],
 ) -> ChatSession:
     row = ChatSession(
@@ -69,6 +77,9 @@ def create_session(
         runtime_profile_id=runtime_profile_id,
         role_id=role_id,
         background_prompt=background_prompt,
+        reasoning_enabled=reasoning_enabled,
+        reasoning_budget=reasoning_budget,
+        show_reasoning=show_reasoning,
         default_enabled_mcp_ids_json=_dump_mcp_ids(default_enabled_mcp_ids),
     )
     db.add(row)
@@ -130,6 +141,9 @@ def update_session(
     runtime_profile_id: str | None,
     role_id: str | None,
     background_prompt: str | None,
+    reasoning_enabled: bool | None,
+    reasoning_budget: int | None,
+    show_reasoning: bool | None,
     archived: bool | None,
     default_enabled_mcp_ids: list[str] | None,
 ) -> ChatSession:
@@ -142,6 +156,12 @@ def update_session(
         row.role_id = role_id
     if background_prompt is not None:
         row.background_prompt = background_prompt
+    if reasoning_enabled is not None:
+        row.reasoning_enabled = reasoning_enabled
+    if reasoning_budget is not None:
+        row.reasoning_budget = reasoning_budget
+    if show_reasoning is not None:
+        row.show_reasoning = show_reasoning
     if archived is not None:
         row.archived = archived
     if default_enabled_mcp_ids is not None:
@@ -269,3 +289,96 @@ def get_attachment_texts(
 def get_session_default_mcp_ids(db: Session, session_id: str, user_id: str) -> list[str]:
     session = _session_for_user(db, session_id, user_id)
     return _load_mcp_ids(session.default_enabled_mcp_ids_json)
+
+
+def copy_session(db: Session, session_id: str, user_id: str, title_prefix: str = "Copy") -> ChatSession:
+    source = _session_for_user(db, session_id, user_id)
+    copied = create_session(
+        db=db,
+        user_id=user_id,
+        title=f"{title_prefix} - {source.title}",
+        runtime_profile_id=source.runtime_profile_id,
+        role_id=source.role_id,
+        background_prompt=source.background_prompt,
+        reasoning_enabled=source.reasoning_enabled,
+        reasoning_budget=source.reasoning_budget,
+        show_reasoning=source.show_reasoning,
+        default_enabled_mcp_ids=_load_mcp_ids(source.default_enabled_mcp_ids_json),
+    )
+    messages = (
+        db.query(ChatMessage)
+        .filter(ChatMessage.session_id == source.id)
+        .order_by(ChatMessage.created_at.asc())
+        .all()
+    )
+    for msg in messages:
+        db.add(
+            ChatMessage(
+                id=str(uuid4()),
+                session_id=copied.id,
+                role=msg.role,
+                content=msg.content,
+            )
+        )
+    db.commit()
+    db.refresh(copied)
+    return copied
+
+
+def export_session_payload(db: Session, session_id: str, user_id: str) -> dict:
+    session = _session_for_user(db, session_id, user_id)
+    messages = list_messages(db, session_id=session_id, user_id=user_id)
+    return {
+        "session": session_to_dict(session),
+        "messages": [
+            {
+                "id": m.id,
+                "role": m.role,
+                "content": m.content,
+                "created_at": m.created_at.isoformat(),
+            }
+            for m in messages
+        ],
+    }
+
+
+def export_session_markdown(payload: dict) -> str:
+    session = payload["session"]
+    lines = [
+        f"# Session Export: {session['title']}",
+        "",
+        f"- session_id: {session['id']}",
+        f"- runtime_profile_id: {session['runtime_profile_id']}",
+        f"- role_id: {session['role_id']}",
+        f"- reasoning_enabled: {session['reasoning_enabled']}",
+        f"- reasoning_budget: {session['reasoning_budget']}",
+        "",
+        "## Messages",
+        "",
+    ]
+    for msg in payload["messages"]:
+        lines.append(f"### {msg['role']} ({msg['created_at']})")
+        lines.append(msg["content"])
+        lines.append("")
+    return "\n".join(lines)
+
+
+def bulk_export_sessions_zip(db: Session, user_id: str, session_ids: list[str]) -> bytes:
+    buf = BytesIO()
+    with zipfile.ZipFile(buf, "w", compression=zipfile.ZIP_DEFLATED) as zf:
+        for session_id in session_ids:
+            payload = export_session_payload(db, session_id=session_id, user_id=user_id)
+            zf.writestr(f"{session_id}.json", json.dumps(payload, ensure_ascii=False, indent=2))
+            zf.writestr(f"{session_id}.md", export_session_markdown(payload))
+    return buf.getvalue()
+
+
+def bulk_delete_sessions(db: Session, user_id: str, session_ids: list[str]) -> int:
+    deleted = 0
+    for session_id in session_ids:
+        try:
+            delete_session(db, session_id=session_id, user_id=user_id)
+            deleted += 1
+        except ChatError:
+            continue
+    return deleted

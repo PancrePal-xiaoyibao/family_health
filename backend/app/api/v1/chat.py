@@ -1,4 +1,6 @@
-from fastapi import APIRouter, Depends, File, Request, UploadFile
+import json
+
+from fastapi import APIRouter, Depends, File, Request, Response, UploadFile
 from sqlalchemy.orm import Session
 
 from app.core.database import get_db
@@ -8,6 +10,7 @@ from app.models.desensitization_rule import DesensitizationRule
 from app.models.user import User
 from app.schemas.chat import (
     ChatMessageCreateRequest,
+    ChatBulkSessionRequest,
     ChatSessionCreateRequest,
     ChatSessionUpdateRequest,
     DesensitizationRuleCreateRequest,
@@ -16,8 +19,13 @@ from app.services.chat_service import (
     ChatError,
     add_attachment,
     add_message,
+    bulk_delete_sessions,
+    bulk_export_sessions_zip,
+    copy_session,
     create_session,
     delete_session,
+    export_session_markdown,
+    export_session_payload,
     list_messages,
     list_sessions,
     session_to_dict,
@@ -43,6 +51,9 @@ def create_session_api(
         runtime_profile_id=payload.runtime_profile_id,
         role_id=payload.role_id,
         background_prompt=payload.background_prompt,
+        reasoning_enabled=payload.reasoning_enabled,
+        reasoning_budget=payload.reasoning_budget,
+        show_reasoning=payload.show_reasoning,
         default_enabled_mcp_ids=payload.default_enabled_mcp_ids,
     )
     return ok(session_to_dict(row), trace_id)
@@ -90,6 +101,9 @@ def update_session_api(
             runtime_profile_id=payload.runtime_profile_id,
             role_id=payload.role_id,
             background_prompt=payload.background_prompt,
+            reasoning_enabled=payload.reasoning_enabled,
+            reasoning_budget=payload.reasoning_budget,
+            show_reasoning=payload.show_reasoning,
             archived=payload.archived,
             default_enabled_mcp_ids=payload.default_enabled_mcp_ids,
         )
@@ -111,6 +125,92 @@ def delete_session_api(
     except ChatError as exc:
         return error(exc.code, exc.message, trace_id, status_code=404)
     return ok({"deleted": True}, trace_id)
+
+
+@router.post("/chat/sessions/{session_id}/copy")
+def copy_session_api(
+    session_id: str,
+    request: Request,
+    user: User = Depends(current_user),
+    db: Session = Depends(get_db),
+):
+    trace_id = trace_id_from_request(request)
+    try:
+        row = copy_session(db, session_id=session_id, user_id=user.id, title_prefix="Copy")
+    except ChatError as exc:
+        return error(exc.code, exc.message, trace_id, status_code=404)
+    return ok(session_to_dict(row), trace_id)
+
+
+@router.post("/chat/sessions/{session_id}/branch")
+def branch_session_api(
+    session_id: str,
+    request: Request,
+    user: User = Depends(current_user),
+    db: Session = Depends(get_db),
+):
+    trace_id = trace_id_from_request(request)
+    try:
+        row = copy_session(db, session_id=session_id, user_id=user.id, title_prefix="Branch")
+    except ChatError as exc:
+        return error(exc.code, exc.message, trace_id, status_code=404)
+    return ok(session_to_dict(row), trace_id)
+
+
+@router.get("/chat/sessions/{session_id}/export")
+def export_session_api(
+    session_id: str,
+    request: Request,
+    fmt: str = "json",
+    user: User = Depends(current_user),
+    db: Session = Depends(get_db),
+):
+    trace_id = trace_id_from_request(request)
+    try:
+        payload = export_session_payload(db, session_id=session_id, user_id=user.id)
+    except ChatError as exc:
+        return error(exc.code, exc.message, trace_id, status_code=404)
+
+    if fmt == "md":
+        return Response(
+            content=export_session_markdown(payload),
+            media_type="text/markdown; charset=utf-8",
+            headers={"Content-Disposition": f'attachment; filename="{session_id}.md"'},
+        )
+    return Response(
+        content=json.dumps(payload, ensure_ascii=False, indent=2),
+        media_type="application/json; charset=utf-8",
+        headers={"Content-Disposition": f'attachment; filename="{session_id}.json"'},
+    )
+
+
+@router.post("/chat/sessions/bulk-export")
+def bulk_export_session_api(
+    payload: ChatBulkSessionRequest,
+    request: Request,
+    user: User = Depends(current_user),
+    db: Session = Depends(get_db),
+):
+    if not payload.session_ids:
+        return error(4006, "No session ids provided", trace_id_from_request(request), status_code=400)
+    zip_bytes = bulk_export_sessions_zip(db, user_id=user.id, session_ids=payload.session_ids)
+    return Response(
+        content=zip_bytes,
+        media_type="application/zip",
+        headers={"Content-Disposition": 'attachment; filename="chat-sessions-export.zip"'},
+    )
+
+
+@router.post("/chat/sessions/bulk-delete")
+def bulk_delete_session_api(
+    payload: ChatBulkSessionRequest,
+    request: Request,
+    user: User = Depends(current_user),
+    db: Session = Depends(get_db),
+):
+    trace_id = trace_id_from_request(request)
+    deleted = bulk_delete_sessions(db, user_id=user.id, session_ids=payload.session_ids)
+    return ok({"deleted": deleted}, trace_id)
 
 
 @router.post("/chat/sessions/{session_id}/messages")

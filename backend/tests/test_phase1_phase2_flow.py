@@ -206,3 +206,43 @@ def test_chat_attachment_only_mode_with_background_prompt(client: TestClient):
     )
     assert qa_resp.status_code == 200
     assert qa_resp.json()["data"]["context"]["attachment_chunks"] == 1
+
+
+def test_chat_session_copy_export_and_bulk_delete(client: TestClient):
+    access_token = _bootstrap_and_login(client)
+    headers = {"Authorization": f"Bearer {access_token}"}
+
+    create_resp = client.post(
+        "/api/v1/chat/sessions",
+        json={"title": "session-a"},
+        headers=headers,
+    )
+    assert create_resp.status_code == 200
+    session_id = create_resp.json()["data"]["id"]
+
+    msg_resp = client.post(
+        f"/api/v1/chat/sessions/{session_id}/messages",
+        json={"role": "user", "content": "hello"},
+        headers=headers,
+    )
+    assert msg_resp.status_code == 200
+
+    copy_resp = client.post(f"/api/v1/chat/sessions/{session_id}/copy", headers=headers)
+    assert copy_resp.status_code == 200
+    copied_id = copy_resp.json()["data"]["id"]
+    assert copied_id != session_id
+
+    export_resp = client.get(
+        f"/api/v1/chat/sessions/{session_id}/export?fmt=json",
+        headers=headers,
+    )
+    assert export_resp.status_code == 200
+    assert export_resp.headers["content-type"].startswith("application/json")
+
+    bulk_delete_resp = client.post(
+        "/api/v1/chat/sessions/bulk-delete",
+        json={"session_ids": [session_id, copied_id]},
+        headers=headers,
+    )
+    assert bulk_delete_resp.status_code == 200
+    assert bulk_delete_resp.json()["data"]["deleted"] == 2

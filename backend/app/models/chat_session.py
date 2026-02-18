@@ -1,6 +1,6 @@
 from datetime import datetime, timezone
 
-from sqlalchemy import Boolean, DateTime, ForeignKey, String, Text
+from sqlalchemy import Boolean, DateTime, ForeignKey, Integer, String, Text
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.core.database import Base
@@ -15,6 +15,9 @@ class ChatSession(Base):
     runtime_profile_id: Mapped[str | None] = mapped_column(String(36), nullable=True)
     role_id: Mapped[str | None] = mapped_column(String(120), nullable=True)
     background_prompt: Mapped[str | None] = mapped_column(Text, nullable=True)
+    reasoning_enabled: Mapped[bool | None] = mapped_column(Boolean, nullable=True)
+    reasoning_budget: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    show_reasoning: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
     default_enabled_mcp_ids_json: Mapped[str] = mapped_column(Text, nullable=False, default="[]")
     archived: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False, index=True)
     deleted_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
