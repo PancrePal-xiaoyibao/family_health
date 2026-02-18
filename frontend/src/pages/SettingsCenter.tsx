@@ -155,7 +155,7 @@ export function SettingsCenter({ token, locale }: { token: string; locale: Local
     enabled: true,
   });
   const [providerPresetKey, setProviderPresetKey] = useState("gemini");
-  const [manualModels, setManualModels] = useState("gemini-custom");
+  const [manualModels, setManualModels] = useState("");
   const [profileForm, setProfileForm] = useState({
     name: "default-profile",
     llm_model_id: "",

@@ -173,12 +173,22 @@ export function ChatCenter({ token, locale }: { token: string; locale: Locale })
   const [profiles, setProfiles] = useState<RuntimeProfile[]>([]);
   const [catalog, setCatalog] = useState<ModelCatalog[]>([]);
   const [query, setQuery] = useState("");
-  const [newSessionRoleId, setNewSessionRoleId] = useState("");
-  const [newSessionPrompt, setNewSessionPrompt] = useState("");
+  const [sessionTitle, setSessionTitle] = useState("");
+  const [sessionRoleId, setSessionRoleId] = useState("");
+  const [sessionPrompt, setSessionPrompt] = useState("");
   const [reasoningEnabled, setReasoningEnabled] = useState<boolean | null>(null);
   const [reasoningBudget, setReasoningBudget] = useState("");
   const [showReasoning, setShowReasoning] = useState(true);
   const [contextLimit, setContextLimit] = useState("20");
+  const [createDialogOpen, setCreateDialogOpen] = useState(false);
+  const [createTitle, setCreateTitle] = useState("");
+  const [createRoleId, setCreateRoleId] = useState("");
+  const [createPrompt, setCreatePrompt] = useState("");
+  const [createReasoningEnabled, setCreateReasoningEnabled] = useState<boolean | null>(null);
+  const [createReasoningBudget, setCreateReasoningBudget] = useState("");
+  const [createShowReasoning, setCreateShowReasoning] = useState(true);
+  const [createContextLimit, setCreateContextLimit] = useState("20");
+  const [createSelectedMcpIds, setCreateSelectedMcpIds] = useState<string[]>([]);
   const [streamingAnswer, setStreamingAnswer] = useState("");
   const [streamingReasoning, setStreamingReasoning] = useState("");
   const [reasoningExpanded, setReasoningExpanded] = useState(true);
@@ -306,8 +316,14 @@ export function ChatCenter({ token, locale }: { token: string; locale: Locale })
   useEffect(() => {
     if (!activeSession) {
       setSelectedMcpIds([]);
+      setSessionTitle("");
+      setSessionRoleId("");
+      setSessionPrompt("");
       return;
     }
+    setSessionTitle(activeSession.title || "");
+    setSessionRoleId(activeSession.role_id || "");
+    setSessionPrompt(activeSession.background_prompt || "");
     setSelectedMcpIds(activeSession.default_enabled_mcp_ids);
     setReasoningEnabled(activeSession.reasoning_enabled);
     setReasoningBudget(activeSession.reasoning_budget ? String(activeSession.reasoning_budget) : "");
@@ -315,24 +331,37 @@ export function ChatCenter({ token, locale }: { token: string; locale: Locale })
     setContextLimit(String(activeSession.context_message_limit || 20));
   }, [activeSession]);
 
-  const createSession = async () => {
+  const openCreateSessionDialog = () => {
+    setCreateTitle(`Chat ${new Date().toLocaleTimeString()}`);
+    setCreateRoleId(sessionRoleId);
+    setCreatePrompt(sessionPrompt);
+    setCreateReasoningEnabled(reasoningEnabled);
+    setCreateReasoningBudget(reasoningBudget);
+    setCreateShowReasoning(showReasoning);
+    setCreateContextLimit(contextLimit);
+    setCreateSelectedMcpIds(selectedMcpIds);
+    setCreateDialogOpen(true);
+  };
+
+  const confirmCreateSession = async () => {
     try {
       const session = await api.createChatSession(
         {
-          title: `Chat ${new Date().toLocaleTimeString()}`,
+          title: createTitle.trim() || `Chat ${new Date().toLocaleTimeString()}`,
           runtime_profile_id: null,
-          role_id: newSessionRoleId || null,
-          background_prompt: newSessionPrompt.trim() || null,
-          reasoning_enabled: reasoningEnabled,
-          reasoning_budget: reasoningBudget.trim() ? Number(reasoningBudget) : null,
-          show_reasoning: showReasoning,
-          context_message_limit: Number(contextLimit) || 20,
-          default_enabled_mcp_ids: selectedMcpIds,
+          role_id: createRoleId || null,
+          background_prompt: createPrompt.trim() || null,
+          reasoning_enabled: createReasoningEnabled,
+          reasoning_budget: createReasoningBudget.trim() ? Number(createReasoningBudget) : null,
+          show_reasoning: createShowReasoning,
+          context_message_limit: Number(createContextLimit) || 20,
+          default_enabled_mcp_ids: createSelectedMcpIds,
         },
         token,
       );
       setSessions((prev) => [session, ...prev]);
       setActiveSessionId(session.id);
+      setCreateDialogOpen(false);
       setMessage(text.created);
     } catch (error) {
       setMessage(error instanceof ApiError ? error.message : text.loadSessionsFailed);
@@ -452,6 +481,9 @@ export function ChatCenter({ token, locale }: { token: string; locale: Locale })
       const updated = await api.updateChatSession(
         activeSessionId,
         {
+          title: sessionTitle.trim() || undefined,
+          role_id: sessionRoleId || null,
+          background_prompt: sessionPrompt.trim() || null,
           default_enabled_mcp_ids: selectedMcpIds,
           reasoning_enabled: reasoningEnabled,
           reasoning_budget: reasoningBudget.trim() ? Number(reasoningBudget) : null,
@@ -588,27 +620,31 @@ export function ChatCenter({ token, locale }: { token: string; locale: Locale })
       <div className="panel">
         <div className="row-between">
           <h3>{text.sessions}</h3>
-          <button type="button" onClick={createSession}>{text.newSession}</button>
+          <button type="button" onClick={openCreateSessionDialog}>{text.newSession}</button>
         </div>
+        {!activeSession && <div className="inline-message">{locale === "zh" ? "请先选择一个会话" : "Select a session first"}</div>}
+        <label>{locale === "zh" ? "会话标题" : "Session title"}
+          <input value={sessionTitle} onChange={(e) => setSessionTitle(e.target.value)} disabled={!activeSessionId} />
+        </label>
         <label>{text.role}
-          <select value={newSessionRoleId} onChange={(e) => setNewSessionRoleId(e.target.value)}>
+          <select value={sessionRoleId} onChange={(e) => setSessionRoleId(e.target.value)} disabled={!activeSessionId}>
             <option value="">{text.noRole}</option>
             {roles.map((item) => <option key={item.id} value={item.id}>{item.name}</option>)}
           </select>
         </label>
         <label>{text.customPrompt}
-          <textarea value={newSessionPrompt} onChange={(e) => setNewSessionPrompt(e.target.value)} placeholder={text.customPromptPlaceholder} />
+          <textarea value={sessionPrompt} onChange={(e) => setSessionPrompt(e.target.value)} placeholder={text.customPromptPlaceholder} disabled={!activeSessionId} />
         </label>
-        <label>{text.contextLimit}<input value={contextLimit} onChange={(e) => setContextLimit(e.target.value)} /></label>
+        <label>{text.contextLimit}<input value={contextLimit} onChange={(e) => setContextLimit(e.target.value)} disabled={!activeSessionId} /></label>
         <label>{text.reasoningSwitch}
-          <select value={reasoningEnabled === null ? "auto" : reasoningEnabled ? "on" : "off"} onChange={(e) => setReasoningEnabled(e.target.value === "auto" ? null : e.target.value === "on")}>
+          <select value={reasoningEnabled === null ? "auto" : reasoningEnabled ? "on" : "off"} onChange={(e) => setReasoningEnabled(e.target.value === "auto" ? null : e.target.value === "on")} disabled={!activeSessionId}>
             <option value="auto">{text.auto}</option>
             <option value="on">{text.on}</option>
             <option value="off">{text.off}</option>
           </select>
         </label>
-        <label>{text.reasoningBudget}<input value={reasoningBudget} onChange={(e) => setReasoningBudget(e.target.value)} /></label>
-        <label className="inline-check"><input type="checkbox" checked={showReasoning} onChange={(e) => setShowReasoning(e.target.checked)} />{text.showReasoning}</label>
+        <label>{text.reasoningBudget}<input value={reasoningBudget} onChange={(e) => setReasoningBudget(e.target.value)} disabled={!activeSessionId} /></label>
+        <label className="inline-check"><input type="checkbox" checked={showReasoning} onChange={(e) => setShowReasoning(e.target.checked)} disabled={!activeSessionId} />{text.showReasoning}</label>
         <button type="button" onClick={persistSessionConfig} disabled={!activeSessionId}>{text.saveConfig}</button>
 
         <div className="row-between">
@@ -731,6 +767,44 @@ export function ChatCenter({ token, locale }: { token: string; locale: Locale })
           <div className="inline-message">{message}</div>
         </div>
       </div>
+      {createDialogOpen && (
+        <div className="modal-mask" onClick={() => setCreateDialogOpen(false)}>
+          <div className="modal-card" onClick={(e) => e.stopPropagation()}>
+            <h3>{locale === "zh" ? "新建会话参数" : "New Session Config"}</h3>
+            <label>{locale === "zh" ? "会话标题" : "Session title"}
+              <input value={createTitle} onChange={(e) => setCreateTitle(e.target.value)} />
+            </label>
+            <label>{text.role}
+              <select value={createRoleId} onChange={(e) => setCreateRoleId(e.target.value)}>
+                <option value="">{text.noRole}</option>
+                {roles.map((item) => <option key={item.id} value={item.id}>{item.name}</option>)}
+              </select>
+            </label>
+            <label>{text.customPrompt}
+              <textarea value={createPrompt} onChange={(e) => setCreatePrompt(e.target.value)} placeholder={text.customPromptPlaceholder} />
+            </label>
+            <label>{text.contextLimit}<input value={createContextLimit} onChange={(e) => setCreateContextLimit(e.target.value)} /></label>
+            <label>{text.reasoningSwitch}
+              <select value={createReasoningEnabled === null ? "auto" : createReasoningEnabled ? "on" : "off"} onChange={(e) => setCreateReasoningEnabled(e.target.value === "auto" ? null : e.target.value === "on")}>
+                <option value="auto">{text.auto}</option>
+                <option value="on">{text.on}</option>
+                <option value="off">{text.off}</option>
+              </select>
+            </label>
+            <label>{text.reasoningBudget}<input value={createReasoningBudget} onChange={(e) => setCreateReasoningBudget(e.target.value)} /></label>
+            <label className="inline-check"><input type="checkbox" checked={createShowReasoning} onChange={(e) => setCreateShowReasoning(e.target.checked)} />{text.showReasoning}</label>
+            <label>{text.mcp}
+              <select multiple value={createSelectedMcpIds} onChange={(e) => setCreateSelectedMcpIds(Array.from(e.target.selectedOptions).map((x) => x.value))}>
+                {mcpServers.map((item) => <option key={item.id} value={item.id}>{item.name}</option>)}
+              </select>
+            </label>
+            <div className="actions">
+              <button type="button" className="ghost" onClick={() => setCreateDialogOpen(false)}>{locale === "zh" ? "取消" : "Cancel"}</button>
+              <button type="button" onClick={confirmCreateSession}>{locale === "zh" ? "确认创建" : "Create"}</button>
+            </div>
+          </div>
+        </div>
+      )}
     </section>
   );
 }

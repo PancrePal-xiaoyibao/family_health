@@ -233,11 +233,11 @@ def test_chat_session_copy_export_and_bulk_delete(client: TestClient):
     assert copied_id != session_id
 
     export_resp = client.get(
-        f"/api/v1/chat/sessions/{session_id}/export?fmt=json",
+        f"/api/v1/chat/sessions/{session_id}/export?fmt=md&include_reasoning=false",
         headers=headers,
     )
     assert export_resp.status_code == 200
-    assert export_resp.headers["content-type"].startswith("application/json")
+    assert export_resp.headers["content-type"].startswith("text/markdown")
 
     bulk_delete_resp = client.post(
         "/api/v1/chat/sessions/bulk-delete",

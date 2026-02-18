@@ -4,8 +4,10 @@ import json
 from datetime import datetime, timezone
 from uuid import uuid4
 
+import httpx
 from sqlalchemy.orm import Session
 
+from app.core.crypto import decrypt_text
 from app.core.crypto import encrypt_text
 from app.models.llm_runtime_profile import LlmRuntimeProfile
 from app.models.model_catalog import ModelCatalog
@@ -94,6 +96,86 @@ def _clip_params(provider_name: str, params: dict) -> dict:
 
 def _normalize_base_url(base_url: str) -> str:
     return base_url.strip().rstrip("/")
+
+
+def _model_type_from_name(name: str) -> str:
+    lower = name.lower()
+    if "embedding" in lower or lower.startswith("text-embedding"):
+        return "embedding"
+    if "rerank" in lower or "reranker" in lower:
+        return "reranker"
+    return "llm"
+
+
+def _openai_models_url(base_url: str) -> str:
+    url = _normalize_base_url(base_url)
+    for suffix in ["/chat/completions", "/completions", "/responses"]:
+        if url.endswith(suffix):
+            url = url[: -len(suffix)]
+            break
+    return f"{url}/models"
+
+
+def _discover_gemini_models(base_url: str, api_key: str) -> list[tuple[str, str, dict]]:
+    url = _normalize_base_url(base_url)
+    with httpx.Client(timeout=20) as client:
+        resp = client.get(f"{url}?key={api_key}")
+    if resp.status_code >= 400:
+        raise ModelRegistryError(3010, f"Gemini model discovery failed: HTTP {resp.status_code}")
+    data = resp.json()
+    models = data.get("models") or []
+    out: list[tuple[str, str, dict]] = []
+    for row in models:
+        full_name = str(row.get("name") or "").strip()
+        if not full_name:
+            continue
+        model_name = full_name.split("/")[-1]
+        methods = row.get("supportedGenerationMethods") or []
+        if any("embed" in str(m).lower() for m in methods):
+            model_type = "embedding"
+        elif any("generatecontent" in str(m).lower() for m in methods):
+            model_type = "llm"
+        else:
+            continue
+        capabilities = {}
+        if model_type == "llm":
+            capabilities = {"supports_reasoning_budget": True, "multimodal": True, "input_types": ["text", "image"]}
+        out.append((model_name, model_type, capabilities))
+    return out
+
+
+def _discover_openai_compatible_models(base_url: str, api_key: str) -> list[tuple[str, str, dict]]:
+    models_url = _openai_models_url(base_url)
+    with httpx.Client(timeout=20) as client:
+        resp = client.get(models_url, headers={"Authorization": f"Bearer {api_key}"})
+    if resp.status_code >= 400:
+        raise ModelRegistryError(3011, f"Model discovery failed: HTTP {resp.status_code}")
+    data = resp.json()
+    items = data.get("data") or []
+    out: list[tuple[str, str, dict]] = []
+    for row in items:
+        model_name = str(row.get("id") or "").strip()
+        if not model_name:
+            continue
+        model_type = _model_type_from_name(model_name)
+        capabilities = {}
+        lower_name = model_name.lower()
+        if model_type == "llm":
+            if "deepseek" in lower_name:
+                capabilities["supports_reasoning_effort"] = True
+            if any(keyword in lower_name for keyword in ("vision", "vl", "omni", "gpt-4o", "gemini")):
+                capabilities["multimodal"] = True
+                capabilities["input_types"] = ["text", "image"]
+        out.append((model_name, model_type, capabilities))
+    return out
+
+
+def _discover_models(provider: ModelProvider) -> list[tuple[str, str, dict]]:
+    normalized = _normalize_provider_name(provider.provider_name)
+    api_key = decrypt_text(provider.api_key_encrypted)
+    if normalized == "gemini":
+        return _discover_gemini_models(provider.base_url, api_key)
+    return _discover_openai_compatible_models(provider.base_url, api_key)
 
 
 def list_provider_presets() -> list[dict]:
@@ -214,7 +296,12 @@ def refresh_models(
     db.query(ModelCatalog).filter(ModelCatalog.provider_id == provider_id).delete()
 
     normalized = _normalize_provider_name(provider.provider_name)
-    discovered = _DEFAULT_DISCOVERY_BY_PROVIDER.get(normalized, [])
+    discovered: list[tuple[str, str, dict]] = []
+    try:
+        discovered = _discover_models(provider)
+    except Exception:
+        discovered = _DEFAULT_DISCOVERY_BY_PROVIDER.get(normalized, []).copy()
+
     if manual_models:
         discovered.extend((model_name, "llm", {}) for model_name in manual_models)
 
@@ -222,7 +309,12 @@ def refresh_models(
         discovered = [("custom-model", "llm", {})]
 
     rows: list[ModelCatalog] = []
+    seen: set[tuple[str, str]] = set()
     for model_name, model_type, capabilities in discovered:
+        key = (model_name, model_type)
+        if key in seen:
+            continue
+        seen.add(key)
         row = ModelCatalog(
             id=str(uuid4()),
             provider_id=provider_id,

@@ -64,3 +64,23 @@
 
 ## 技术债务记录
 - 当前预置仅用于配置填充，未直接对接真实供应商模型自动发现。
+
+### [2026-02-18 23:58] 模型刷新体验修复（自动发现供应商模型）
+- 问题
+  - 刷新模型后常需手动填写（SiliconFlow / Gemini 新模型未自动出现）。
+- 根因
+  - `refresh_models` 仅使用本地静态默认列表，未调用供应商真实模型列表接口。
+- 修复
+  - 新增供应商模型自动发现链路：
+    - Gemini: 使用 `GET {base_url}?key=API_KEY` 解析 `models`。
+    - OpenAI 兼容: 自动从 `.../chat/completions` 推导 `.../models` 并 `GET`。
+  - 新增模型类型推断（llm/embedding/reranker）与能力标记（DeepSeek reasoning、常见多模态模型）。
+  - 自动发现失败时回退到原默认列表，避免阻塞使用。
+  - 去重 discovered + manual models。
+  - Settings 默认 `manualModels` 改为空字符串，避免刷新时人为注入占位模型。
+- 影响文件
+  - `backend/app/services/model_registry_service.py`
+  - `frontend/src/pages/SettingsCenter.tsx`
+- 验证
+  - `uv run ruff check .` 通过
+  - `uv run pytest tests/test_phase1_phase2_flow.py` 通过

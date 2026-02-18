@@ -158,3 +158,22 @@
 - Checkfix
   - `uv run pytest tests/test_schema_migration.py tests/test_attachment_upload_parsing.py` passed
   - `npm run build` passed
+
+### [2026-02-19 00:05] 会话配置区与新建会话交互重构
+- 需求
+  - 选中会话时，顶部显示并编辑该会话配置。
+  - 新建会话改为弹窗参数确认后创建，取消“一键立即创建”。
+- 改动
+  - 顶部配置区改为绑定 `activeSession`：
+    - 标题、角色、背景提示词、思维参数、上下文轮数、默认 MCP。
+    - 点击“保存会话配置”写回当前会话。
+  - 新建会话新增弹窗：
+    - 标题、角色、提示词、思维参数、上下文轮数、默认 MCP。
+    - 确认后调用创建接口并激活新会话。
+  - 新增弹窗样式：`modal-mask` / `modal-card`。
+- 影响文件
+  - `frontend/src/pages/ChatCenter.tsx`
+  - `frontend/src/styles/global.css`
+  - `docs/USER_GUIDE.md`
+- 验证
+  - `npm run build` 通过
