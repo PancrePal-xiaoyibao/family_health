@@ -123,3 +123,32 @@
   - `uv run ruff check .` 通过
   - `uv run pytest tests/test_phase1_phase2_flow.py` 通过
   - `npm run build` 通过
+
+### [2026-02-19 00:45] Runtime Profile 模型下拉按供应商分组
+- 需求
+  - Runtime Profile 选择模型时区分供应商来源，避免同名模型混淆。
+- 实现
+  - 在 Settings Runtime 下拉中按 `provider_name` 分组渲染 (`optgroup`)。
+  - LLM/Embedding/Reranker 三个下拉统一使用分组渲染。
+- 影响文件
+  - `frontend/src/pages/SettingsCenter.tsx`
+  - `docs/USER_GUIDE.md`
+- 验证
+  - `npm run build` 通过
+
+### [2026-02-19 01:00] Settings 右侧改为 Runtime 模型浏览器
+- 需求
+  - 右侧不再只做配置概览，占用空间应承载模型长列表与选择操作。
+- 实现
+  - Runtime 页右侧改为“模型浏览与快捷选择”：
+    - 搜索（模型名/供应商）
+    - 供应商筛选
+    - 模型类型筛选（llm/embedding/reranker）
+    - 点击模型可一键填入 Runtime Profile 对应字段
+  - 非 Runtime 页右侧仍保留概览指标。
+- 影响文件
+  - `frontend/src/pages/SettingsCenter.tsx`
+  - `frontend/src/styles/global.css`
+  - `docs/USER_GUIDE.md`
+- 验证
+  - `npm run build` 通过

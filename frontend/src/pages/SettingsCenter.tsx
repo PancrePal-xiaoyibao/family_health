@@ -174,6 +174,9 @@ export function SettingsCenter({ token, locale }: { token: string; locale: Local
   const [profiles, setProfiles] = useState<RuntimeProfile[]>([]);
   const [mcpServers, setMcpServers] = useState<McpServer[]>([]);
   const [message, setMessage] = useState<string>(text.ready);
+  const [modelSearch, setModelSearch] = useState("");
+  const [modelProviderFilter, setModelProviderFilter] = useState("all");
+  const [modelTypeFilter, setModelTypeFilter] = useState<"all" | "llm" | "embedding" | "reranker">("all");
 
   const [providerFilter, setProviderFilter] = useState("");
   const [providerForm, setProviderForm] = useState({
@@ -216,6 +219,50 @@ export function SettingsCenter({ token, locale }: { token: string; locale: Local
   const llmModels = useMemo(() => catalog.filter((item) => item.model_type === "llm"), [catalog]);
   const embeddingModels = useMemo(() => catalog.filter((item) => item.model_type === "embedding"), [catalog]);
   const rerankerModels = useMemo(() => catalog.filter((item) => item.model_type === "reranker"), [catalog]);
+  const providerNameById = useMemo(
+    () => providers.reduce<Record<string, string>>((acc, item) => ({ ...acc, [item.id]: item.provider_name }), {}),
+    [providers],
+  );
+  const providerNames = useMemo(
+    () => Array.from(new Set(catalog.map((item) => providerNameById[item.provider_id] ?? "unknown"))).sort(),
+    [catalog, providerNameById],
+  );
+  const modelExplorerItems = useMemo(() => {
+    const q = modelSearch.trim().toLowerCase();
+    return catalog.filter((item) => {
+      const providerName = (providerNameById[item.provider_id] ?? "unknown").toLowerCase();
+      if (modelProviderFilter !== "all" && providerName !== modelProviderFilter.toLowerCase()) {
+        return false;
+      }
+      if (modelTypeFilter !== "all" && item.model_type !== modelTypeFilter) {
+        return false;
+      }
+      if (!q) {
+        return true;
+      }
+      return item.model_name.toLowerCase().includes(q) || providerName.includes(q);
+    });
+  }, [catalog, modelSearch, modelProviderFilter, modelTypeFilter, providerNameById]);
+
+  const renderModelOptions = (models: ModelCatalog[]) => {
+    const grouped = models.reduce<Record<string, ModelCatalog[]>>((acc, item) => {
+      const providerName = providerNameById[item.provider_id] ?? "unknown";
+      if (!acc[providerName]) {
+        acc[providerName] = [];
+      }
+      acc[providerName].push(item);
+      return acc;
+    }, {});
+    return Object.entries(grouped).map(([providerName, items]) => (
+      <optgroup key={providerName} label={providerName}>
+        {items.map((item) => (
+          <option key={item.id} value={item.id}>
+            {item.model_name}
+          </option>
+        ))}
+      </optgroup>
+    ));
+  };
 
   const filteredProviders = useMemo(() => {
     const q = providerFilter.trim().toLowerCase();
@@ -412,6 +459,19 @@ export function SettingsCenter({ token, locale }: { token: string; locale: Local
     }
   };
 
+  const pickModelToProfile = (model: ModelCatalog) => {
+    setProfileReadonly(false);
+    setProfileForm((prev) => {
+      if (model.model_type === "embedding") {
+        return { ...prev, embedding_model_id: model.id };
+      }
+      if (model.model_type === "reranker") {
+        return { ...prev, reranker_model_id: model.id };
+      }
+      return { ...prev, llm_model_id: model.id };
+    });
+  };
+
   const createMcp = async () => {
     if (!mcpForm.name.trim() || !mcpForm.command.trim()) {
       setMessage(text.mcpNeedNameCmd);
@@ -551,27 +611,21 @@ export function SettingsCenter({ token, locale }: { token: string; locale: Local
               {text.llmModel}
               <select value={profileForm.llm_model_id} onChange={(e) => setProfileForm((s) => ({ ...s, llm_model_id: e.target.value }))} disabled={profileReadonly}>
                 <option value="">{text.pleaseSelect}</option>
-                {llmModels.map((item) => (
-                  <option key={item.id} value={item.id}>{item.model_name}</option>
-                ))}
+                {renderModelOptions(llmModels)}
               </select>
             </label>
             <label>
               {text.embeddingModel}
               <select value={profileForm.embedding_model_id} onChange={(e) => setProfileForm((s) => ({ ...s, embedding_model_id: e.target.value }))} disabled={profileReadonly}>
                 <option value="">{text.pleaseSelect}</option>
-                {embeddingModels.map((item) => (
-                  <option key={item.id} value={item.id}>{item.model_name}</option>
-                ))}
+                {renderModelOptions(embeddingModels)}
               </select>
             </label>
             <label>
               {text.rerankerModel}
               <select value={profileForm.reranker_model_id} onChange={(e) => setProfileForm((s) => ({ ...s, reranker_model_id: e.target.value }))} disabled={profileReadonly}>
                 <option value="">{text.pleaseSelect}</option>
-                {rerankerModels.map((item) => (
-                  <option key={item.id} value={item.id}>{item.model_name}</option>
-                ))}
+                {renderModelOptions(rerankerModels)}
               </select>
             </label>
             <label>
@@ -664,7 +718,46 @@ export function SettingsCenter({ token, locale }: { token: string; locale: Local
       </div>
 
       <div className="panel">
-        <h3>{text.overview}</h3>
+        <h3>{tab === "runtime" ? (locale === "zh" ? "模型浏览与快捷选择" : "Model Explorer") : text.overview}</h3>
+        {tab === "runtime" && (
+          <>
+            <div className="model-toolbar">
+              <input
+                placeholder={locale === "zh" ? "搜索模型名/供应商" : "Search model/provider"}
+                value={modelSearch}
+                onChange={(e) => setModelSearch(e.target.value)}
+              />
+              <select value={modelProviderFilter} onChange={(e) => setModelProviderFilter(e.target.value)}>
+                <option value="all">{locale === "zh" ? "全部供应商" : "All providers"}</option>
+                {providerNames.map((item) => (
+                  <option key={item} value={item}>{item}</option>
+                ))}
+              </select>
+              <select value={modelTypeFilter} onChange={(e) => setModelTypeFilter(e.target.value as "all" | "llm" | "embedding" | "reranker")}>
+                <option value="all">{locale === "zh" ? "全部类型" : "All types"}</option>
+                <option value="llm">LLM</option>
+                <option value="embedding">Embedding</option>
+                <option value="reranker">Reranker</option>
+              </select>
+            </div>
+            <div className="list model-explorer-list">
+              {modelExplorerItems.map((item) => (
+                <div key={item.id} className="list-item model-row">
+                  <div>
+                    <strong>{item.model_name}</strong>
+                    <small>{providerNameById[item.provider_id] ?? "unknown"} | {item.model_type}</small>
+                  </div>
+                  <button type="button" className="icon-btn" title={locale === "zh" ? "选入配置" : "Pick for profile"} onClick={() => pickModelToProfile(item)}>
+                    <Icon d="M20 6L9 17l-5-5" />
+                  </button>
+                </div>
+              ))}
+              {modelExplorerItems.length === 0 && (
+                <div className="inline-message">{locale === "zh" ? "暂无匹配模型" : "No matching models"}</div>
+              )}
+            </div>
+          </>
+        )}
         <div className="mini-grid">
           <div><h4>{text.providerCount}</h4><p>{providers.length}</p></div>
           <div><h4>{text.mcpCount}</h4><p>{mcpServers.length}</p></div>

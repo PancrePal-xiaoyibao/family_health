@@ -14,7 +14,9 @@
 5. 在 `模型选择` 页签，从下拉框选择 LLM/Embedding/Reranker 创建 Runtime Profile。
 6. 刷新模型时系统会优先自动拉取供应商模型列表（Gemini/OpenAI 兼容/SiliconFlow/OpenRouter 等），仅在供应商未返回或网络失败时才需要手动补充模型名。
 7. Runtime Profile 列表支持小图标管理：查看、编辑、删除；编辑后可更新参数并保存。
-8. 在 `MCP 工具` 页签：
+8. Runtime Profile 的模型下拉按供应商分组展示，方便区分不同供应商下的同名模型。
+9. 设置右侧在 Runtime 页会显示“模型浏览与快捷选择”列表：支持搜索、按供应商/类型筛选，点击即可快速填入 Profile 的对应模型槽位。
+10. 在 `MCP 工具` 页签：
    - 手工新增时填写 `启动命令` 和 `启动参数`，系统会自动生成 MCP 配置（无需手填 endpoint）。
    - 粘贴 MCP JSON 模板批量导入（如 `command=npx` + `args=[...]`）。
    - 选择并保存 QA Agent 绑定。
