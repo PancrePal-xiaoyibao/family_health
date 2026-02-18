@@ -1,6 +1,6 @@
 ﻿import { useEffect, useMemo, useState } from "react";
 
-import { api } from "./api/client";
+import { AUTH_EXPIRED_EVENT, api } from "./api/client";
 import type { UserSession } from "./api/types";
 import { AuthPage } from "./pages/AuthPage";
 import { ChatCenter } from "./pages/ChatCenter";
@@ -34,6 +34,7 @@ function saveSession(session: UserSession | null): void {
 
 export function App() {
   const [session, setSession] = useState<UserSession | null>(() => loadSession());
+  const [authMessage, setAuthMessage] = useState("");
   const [activeNav, setActiveNav] = useState<NavKey>("chat");
   const [health, setHealth] = useState<"online" | "offline">("offline");
 
@@ -56,6 +57,18 @@ export function App() {
     return () => {
       disposed = true;
       window.clearInterval(timer);
+    };
+  }, []);
+
+  useEffect(() => {
+    const onAuthExpired = () => {
+      setSession(null);
+      saveSession(null);
+      setAuthMessage("登录状态已失效，请重新登录。");
+    };
+    window.addEventListener(AUTH_EXPIRED_EVENT, onAuthExpired);
+    return () => {
+      window.removeEventListener(AUTH_EXPIRED_EVENT, onAuthExpired);
     };
   }, []);
 
@@ -84,6 +97,7 @@ export function App() {
   const handleLogin = (next: UserSession) => {
     setSession(next);
     saveSession(next);
+    setAuthMessage("");
   };
 
   const logout = () => {
@@ -92,7 +106,7 @@ export function App() {
   };
 
   if (!session) {
-    return <AuthPage onLogin={handleLogin} />;
+    return <AuthPage onLogin={handleLogin} initialMessage={authMessage} />;
   }
 
   return (

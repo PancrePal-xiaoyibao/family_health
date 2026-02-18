@@ -1,17 +1,30 @@
-﻿import { FormEvent, useState } from "react";
+import { FormEvent, useEffect, useState } from "react";
 
 import { api, ApiError } from "../api/client";
 import type { UserSession } from "../api/types";
 
 type AuthMode = "login" | "bootstrap" | "register";
 
-export function AuthPage({ onLogin }: { onLogin: (session: UserSession) => void }) {
+export function AuthPage({
+  onLogin,
+  initialMessage = "",
+}: {
+  onLogin: (session: UserSession) => void;
+  initialMessage?: string;
+}) {
   const [mode, setMode] = useState<AuthMode>("login");
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
   const [displayName, setDisplayName] = useState("");
   const [loading, setLoading] = useState(false);
   const [message, setMessage] = useState<string>("");
+
+  useEffect(() => {
+    if (!initialMessage) {
+      return;
+    }
+    setMessage(initialMessage);
+  }, [initialMessage]);
 
   const submitLogin = async (event: FormEvent) => {
     event.preventDefault();

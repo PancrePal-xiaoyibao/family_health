@@ -13,6 +13,17 @@
 } from "./types";
 
 const API_PREFIX = "/api/v1";
+export const AUTH_EXPIRED_EVENT = "fh:auth-expired";
+
+let authExpiredNotified = false;
+
+function notifyAuthExpired(): void {
+  if (authExpiredNotified) {
+    return;
+  }
+  authExpiredNotified = true;
+  window.dispatchEvent(new CustomEvent(AUTH_EXPIRED_EVENT));
+}
 
 export class ApiError extends Error {
   constructor(
@@ -58,6 +69,7 @@ async function request<T>(
       /missing bearer token|invalid token|invalid token type|user not found/i.test(message)
     ) {
       message = "登录状态已失效，请重新登录后重试";
+      notifyAuthExpired();
     }
     throw new ApiError(message, maybeEnvelope.code ?? response.status, maybeEnvelope.trace_id ?? "unknown");
   }
@@ -78,7 +90,11 @@ export const api = {
   login: (payload: {
     username: string;
     password: string;
-  }): Promise<AuthLoginData> => request("/auth/login", { method: "POST", body: JSON.stringify(payload) }),
+  }): Promise<AuthLoginData> =>
+    request<AuthLoginData>("/auth/login", { method: "POST", body: JSON.stringify(payload) }).then((data) => {
+      authExpiredNotified = false;
+      return data;
+    }),
   register: (payload: {
     username: string;
     password: string;
@@ -162,6 +178,12 @@ export const api = {
     });
     const body = (await response.json()) as ApiEnvelope<{ id: string }>;
     if (!response.ok || body.code !== 0) {
+      if (
+        response.status === 401 &&
+        /missing bearer token|invalid token|invalid token type|user not found/i.test(body.message)
+      ) {
+        notifyAuthExpired();
+      }
       throw new ApiError(body.message, body.code ?? response.status, body.trace_id ?? "unknown");
     }
     return body.data;
