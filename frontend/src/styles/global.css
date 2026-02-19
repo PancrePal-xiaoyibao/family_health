@@ -525,6 +525,7 @@ button.ghost {
   display: grid;
   place-items: center;
   font-weight: 600;
+  padding: 0;
   overflow: hidden;
 }
 

@@ -31,3 +31,8 @@
 ## 追加优化
 - 收起态会话轨道增加 `＋` 新建入口，位置紧贴列表底部，保持可发现性。
 - Checkfix: `npm run build` ✅
+
+## 细节修复（2026-02-19）
+- 收起态会话轨道按钮取消默认 `button` 内边距，确保 emoji/＋在小方块正中央。
+- `frontend/src/styles/global.css`: 为 `.session-rail-item` 增加 `padding: 0`。
+- Checkfix: `npm run build` ✅
