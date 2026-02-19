@@ -69,3 +69,7 @@
 - 知识库上传预览顶部增加隐私责任提示条。
 - README 增加隐私提醒与功能亮点说明。
 - Checkfix: `npm run build` ✅
+
+## 责任确认
+- 上传预览需勾选责任确认后才允许上传。
+- Checkfix: `npm run build` ✅
