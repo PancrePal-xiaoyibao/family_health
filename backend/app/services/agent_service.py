@@ -356,6 +356,7 @@ def _prepare_context(
                 kb_id=kb_id,
                 user_id=user.id,
                 query=normalized_query or "(attachment-only mode)",
+                top_k=None,
             )
         except KbError as exc:
             raise ChatError(exc.code, exc.message) from exc
