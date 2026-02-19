@@ -93,7 +93,10 @@ def list_rules(db: Session, user_id: str) -> list[DesensitizationRule]:
 
 
 def _replace_with_mapping(
-    pattern: re.Pattern, text: str, replacement_token: str, on_match: Callable[[str], None]
+    pattern: re.Pattern,
+    text: str,
+    replacement_token: str,
+    on_match: Callable[[str], None],
 ) -> str:
     def repl(match: re.Match) -> str:
         matched = match.group(0)
@@ -138,11 +141,17 @@ def sanitize_text(
                 source_path,
             )
 
-        sanitized = _replace_with_mapping(regex, sanitized, rule.replacement_token, on_match)
+        sanitized = _replace_with_mapping(
+            regex, sanitized, rule.replacement_token, on_match
+        )
 
     # Strong gate: potentially sensitive patterns are not allowed into AI workspace when no masking happened.
-    if replacements == 0 and any(pattern.search(sanitized) for pattern in _HIGH_RISK_PATTERNS):
-        raise DesensitizationError(5002, "Potential PII detected; add desensitization rules first")
+    if replacements == 0 and any(
+        pattern.search(sanitized) for pattern in _HIGH_RISK_PATTERNS
+    ):
+        raise DesensitizationError(
+            5002, "Potential PII detected; add desensitization rules first"
+        )
 
     db.flush()
     return sanitized, replacements

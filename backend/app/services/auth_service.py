@@ -137,7 +137,9 @@ def login(
     }
 
 
-def rotate_refresh_token(db: Session, trace_id: str, user_id: str, refresh_token: str) -> dict:
+def rotate_refresh_token(
+    db: Session, trace_id: str, user_id: str, refresh_token: str
+) -> dict:
     token_hash = _hash_refresh_token(refresh_token)
     now = datetime.now(timezone.utc)
     session = (
@@ -181,7 +183,9 @@ def logout(db: Session, trace_id: str, user_id: str, refresh_token: str) -> None
     token_hash = _hash_refresh_token(refresh_token)
     session = (
         db.query(UserSession)
-        .filter(UserSession.user_id == user_id, UserSession.refresh_token_hash == token_hash)
+        .filter(
+            UserSession.user_id == user_id, UserSession.refresh_token_hash == token_hash
+        )
         .first()
     )
     if session and session.revoked_at is None:
@@ -191,7 +195,12 @@ def logout(db: Session, trace_id: str, user_id: str, refresh_token: str) -> None
 
 
 def create_user(
-    db: Session, trace_id: str, username: str, password: str, display_name: str, role: str
+    db: Session,
+    trace_id: str,
+    username: str,
+    password: str,
+    display_name: str,
+    role: str,
 ) -> User:
     if db.query(User).filter(User.username == username).first():
         raise AuthError(2002, "Username already exists")

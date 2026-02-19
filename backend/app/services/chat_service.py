@@ -14,6 +14,13 @@ from app.core.paths import raw_vault_root, sanitized_workspace_root
 from app.models.chat_attachment import ChatAttachment
 from app.models.chat_message import ChatMessage
 from app.models.chat_session import ChatSession
+from app.models.llm_runtime_profile import LlmRuntimeProfile
+from app.services.knowledge_base_service import (
+    GLOBAL_RETRIEVAL_DEFAULTS,
+    KbError,
+    create_kb,
+    get_kb_global_defaults,
+)
 from app.services.desensitization_service import DesensitizationError, sanitize_text
 from app.services.file_text_extract import extract_text_from_file, safe_storage_name
 
@@ -43,12 +50,96 @@ def _load_mcp_ids(raw: str | None) -> list[str]:
     return [item for item in data if isinstance(item, str)]
 
 
+def _resolve_profile_for_chat_kb(
+    db: Session,
+    user_id: str,
+    runtime_profile_id: str | None,
+) -> LlmRuntimeProfile | None:
+    query = db.query(LlmRuntimeProfile).filter(LlmRuntimeProfile.user_id == user_id)
+    if runtime_profile_id:
+        return query.filter(LlmRuntimeProfile.id == runtime_profile_id).first()
+    return query.filter(LlmRuntimeProfile.is_default.is_(True)).first()
+
+
+def _chat_kb_base_name(base_title: str) -> str:
+    base = (base_title or "Chat").strip() or "Chat"
+    return f"{base} chatdb"
+
+
+def ensure_session_chat_kb(
+    db: Session,
+    user_id: str,
+    session_id: str | None = None,
+    session: ChatSession | None = None,
+) -> str:
+    resolved_session = session or get_session_for_user(
+        db, session_id=session_id or "", user_id=user_id
+    )
+    if resolved_session.chat_kb_id:
+        return resolved_session.chat_kb_id
+    profile = _resolve_profile_for_chat_kb(
+        db, user_id, resolved_session.runtime_profile_id
+    )
+    if not profile:
+        raise ChatError(7002, "Please configure a default runtime profile first")
+    name = _chat_kb_base_name(resolved_session.title)
+    defaults = get_kb_global_defaults(db, user_id)
+    try:
+        kb = create_kb(
+            db,
+            user_id=user_id,
+            name=name,
+            member_scope="global",
+            chunk_size=1000,
+            chunk_overlap=150,
+            top_k=8,
+            rerank_top_n=4,
+            embedding_model_id=profile.embedding_model_id,
+            reranker_model_id=profile.reranker_model_id,
+            semantic_model_id=profile.llm_model_id,
+            use_global_defaults=False,
+            retrieval_strategy=str(GLOBAL_RETRIEVAL_DEFAULTS["retrieval_strategy"]),
+            keyword_weight=float(GLOBAL_RETRIEVAL_DEFAULTS["keyword_weight"]),
+            semantic_weight=float(GLOBAL_RETRIEVAL_DEFAULTS["semantic_weight"]),
+            rerank_weight=float(GLOBAL_RETRIEVAL_DEFAULTS["rerank_weight"]),
+            strategy_params=defaults.get("strategy_params", {}),
+        )
+    except KbError:
+        name = (
+            f"{_chat_kb_base_name(resolved_session.title)} ({resolved_session.id[:8]})"
+        )
+        kb = create_kb(
+            db,
+            user_id=user_id,
+            name=name,
+            member_scope="global",
+            chunk_size=1000,
+            chunk_overlap=150,
+            top_k=8,
+            rerank_top_n=4,
+            embedding_model_id=profile.embedding_model_id,
+            reranker_model_id=profile.reranker_model_id,
+            semantic_model_id=profile.llm_model_id,
+            use_global_defaults=False,
+            retrieval_strategy=str(GLOBAL_RETRIEVAL_DEFAULTS["retrieval_strategy"]),
+            keyword_weight=float(GLOBAL_RETRIEVAL_DEFAULTS["keyword_weight"]),
+            semantic_weight=float(GLOBAL_RETRIEVAL_DEFAULTS["semantic_weight"]),
+            rerank_weight=float(GLOBAL_RETRIEVAL_DEFAULTS["rerank_weight"]),
+            strategy_params=defaults.get("strategy_params", {}),
+        )
+    resolved_session.chat_kb_id = kb.id
+    db.commit()
+    db.refresh(resolved_session)
+    return kb.id
+
+
 def session_to_dict(row: ChatSession) -> dict:
     return {
         "id": row.id,
         "title": row.title,
         "archived": row.archived,
         "runtime_profile_id": row.runtime_profile_id,
+        "chat_kb_id": row.chat_kb_id,
         "role_id": row.role_id,
         "background_prompt": row.background_prompt,
         "reasoning_enabled": row.reasoning_enabled,
@@ -89,6 +180,10 @@ def create_session(
     db.add(row)
     db.commit()
     db.refresh(row)
+    try:
+        ensure_session_chat_kb(db, user_id=user_id, session=row)
+    except ChatError:
+        pass
     return row
 
 
@@ -105,7 +200,9 @@ def list_sessions(
     )
     if query_text:
         like = f"%{query_text}%"
-        query = query.filter(or_(ChatSession.title.like(like), ChatSession.summary.like(like)))
+        query = query.filter(
+            or_(ChatSession.title.like(like), ChatSession.summary.like(like))
+        )
     if archived is not None:
         query = query.filter(ChatSession.archived.is_(archived))
     total = query.count()
@@ -142,7 +239,7 @@ def update_session(
     session_id: str,
     user_id: str,
     title: str | None,
-    runtime_profile_id: str | None,
+    runtime_profile_id: str | None | object,
     role_id: str | None,
     background_prompt: str | None,
     reasoning_enabled: bool | None,
@@ -155,7 +252,7 @@ def update_session(
     row = _session_for_user(db, session_id, user_id)
     if title is not None:
         row.title = title
-    if runtime_profile_id is not None:
+    if runtime_profile_id is not UNSET:
         row.runtime_profile_id = runtime_profile_id
     if role_id is not None:
         row.role_id = role_id
@@ -234,7 +331,9 @@ def delete_message(db: Session, session_id: str, user_id: str, message_id: str) 
     db.commit()
 
 
-def bulk_delete_messages(db: Session, session_id: str, user_id: str, message_ids: list[str]) -> int:
+def bulk_delete_messages(
+    db: Session, session_id: str, user_id: str, message_ids: list[str]
+) -> int:
     _session_for_user(db, session_id, user_id)
     if not message_ids:
         raise ChatError(4006, "No message ids provided")
@@ -266,7 +365,12 @@ def add_attachment(
 
     attachment_id = str(uuid4())
     safe_name = safe_storage_name(file_name, fallback="attachment.txt")
-    raw_path = raw_vault_root() / "chat_attachments" / session_id / f"{attachment_id}_{safe_name}"
+    raw_path = (
+        raw_vault_root()
+        / "chat_attachments"
+        / session_id
+        / f"{attachment_id}_{safe_name}"
+    )
     sanitized_path = (
         sanitized_workspace_root()
         / "chat_attachments"
@@ -354,7 +458,10 @@ def get_attachment_meta(
     _session_for_user(db, session_id, user_id)
     rows = (
         db.query(ChatAttachment)
-        .filter(ChatAttachment.session_id == session_id, ChatAttachment.id.in_(attachment_ids))
+        .filter(
+            ChatAttachment.session_id == session_id,
+            ChatAttachment.id.in_(attachment_ids),
+        )
         .all()
     )
     out: list[dict] = []
@@ -370,12 +477,16 @@ def get_attachment_meta(
     return out
 
 
-def get_session_default_mcp_ids(db: Session, session_id: str, user_id: str) -> list[str]:
+def get_session_default_mcp_ids(
+    db: Session, session_id: str, user_id: str
+) -> list[str]:
     session = _session_for_user(db, session_id, user_id)
     return _load_mcp_ids(session.default_enabled_mcp_ids_json)
 
 
-def copy_session(db: Session, session_id: str, user_id: str, title_prefix: str = "Copy") -> ChatSession:
+def copy_session(
+    db: Session, session_id: str, user_id: str, title_prefix: str = "Copy"
+) -> ChatSession:
     source = _session_for_user(db, session_id, user_id)
     copied = create_session(
         db=db,
@@ -488,3 +599,6 @@ def bulk_delete_sessions(db: Session, user_id: str, session_ids: list[str]) -> i
         except ChatError:
             continue
     return deleted
+
+
+UNSET = object()

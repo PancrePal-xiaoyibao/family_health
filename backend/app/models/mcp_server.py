@@ -10,7 +10,9 @@ class McpServer(Base):
     __tablename__ = "mcp_servers"
 
     id: Mapped[str] = mapped_column(String(36), primary_key=True)
-    user_id: Mapped[str] = mapped_column(String(36), ForeignKey("users.id"), nullable=False, index=True)
+    user_id: Mapped[str] = mapped_column(
+        String(36), ForeignKey("users.id"), nullable=False, index=True
+    )
     name: Mapped[str] = mapped_column(String(80), nullable=False, index=True)
     endpoint: Mapped[str] = mapped_column(String(500), nullable=False)
     auth_type: Mapped[str] = mapped_column(String(32), nullable=False, default="none")

@@ -76,7 +76,9 @@ def test_model_registry_and_runtime_profile(client: TestClient):
     catalog_resp = client.get("/api/v1/model-catalog", headers=headers)
     assert catalog_resp.status_code == 200
     llm_model_id = next(
-        item["id"] for item in catalog_resp.json()["data"]["items"] if item["model_type"] == "llm"
+        item["id"]
+        for item in catalog_resp.json()["data"]["items"]
+        if item["model_type"] == "llm"
     )
 
     profile_resp = client.post(
@@ -113,7 +115,9 @@ def test_model_registry_and_runtime_profile(client: TestClient):
     )
     assert delete_profile_resp.status_code == 200
 
-    delete_resp = client.delete(f"/api/v1/model-providers/{provider_id}", headers=headers)
+    delete_resp = client.delete(
+        f"/api/v1/model-providers/{provider_id}", headers=headers
+    )
     assert delete_resp.status_code == 200
 
 
@@ -145,7 +149,9 @@ def test_chat_attachment_sanitization_and_agent_qa(client: TestClient):
     upload_resp = client.post(
         f"/api/v1/chat/sessions/{session_id}/attachments",
         headers=headers,
-        files={"file": ("report.txt", "联系方式 13800138000".encode("utf-8"), "text/plain")},
+        files={
+            "file": ("report.txt", "联系方式 13800138000".encode("utf-8"), "text/plain")
+        },
     )
     assert upload_resp.status_code == 200
     attachment_id = upload_resp.json()["data"]["id"]
@@ -163,14 +169,18 @@ def test_chat_attachment_sanitization_and_agent_qa(client: TestClient):
     assert qa_resp.status_code == 200
     assert qa_resp.json()["data"]["context"]["attachment_chunks"] == 1
 
-    msg_resp = client.get(f"/api/v1/chat/sessions/{session_id}/messages", headers=headers)
+    msg_resp = client.get(
+        f"/api/v1/chat/sessions/{session_id}/messages", headers=headers
+    )
     assert msg_resp.status_code == 200
     assert len(msg_resp.json()["data"]["items"]) == 2
 
     blocked_resp = client.post(
         f"/api/v1/chat/sessions/{session_id}/attachments",
         headers=headers,
-        files={"file": ("raw.txt", "email: test@example.com".encode("utf-8"), "text/plain")},
+        files={
+            "file": ("raw.txt", "email: test@example.com".encode("utf-8"), "text/plain")
+        },
     )
     assert blocked_resp.status_code == 422
     assert blocked_resp.json()["code"] == 5002
@@ -204,7 +214,9 @@ def test_chat_attachment_only_mode_with_background_prompt(client: TestClient):
     upload_resp = client.post(
         f"/api/v1/chat/sessions/{session_id}/attachments",
         headers=headers,
-        files={"file": ("report.txt", "联系方式 13800138000".encode("utf-8"), "text/plain")},
+        files={
+            "file": ("report.txt", "联系方式 13800138000".encode("utf-8"), "text/plain")
+        },
     )
     assert upload_resp.status_code == 200
     attachment_id = upload_resp.json()["data"]["id"]

@@ -19,7 +19,9 @@ def client() -> Generator[TestClient, None, None]:
         poolclass=StaticPool,
         future=True,
     )
-    TestingSessionLocal = sessionmaker(bind=engine, autoflush=False, autocommit=False, future=True)
+    TestingSessionLocal = sessionmaker(
+        bind=engine, autoflush=False, autocommit=False, future=True
+    )
     Base.metadata.create_all(bind=engine)
 
     def override_get_db() -> Generator[Session, None, None]:

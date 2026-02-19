@@ -37,7 +37,12 @@ def _job_to_dict(row: ExportJob) -> dict:
 
 
 def _add_export_item(
-    db: Session, job_id: str, item_type: str, item_id: str, sanitized_path: str | None, meta: dict
+    db: Session,
+    job_id: str,
+    item_type: str,
+    item_id: str,
+    sanitized_path: str | None,
+    meta: dict,
 ):
     db.add(
         ExportItem(
@@ -95,7 +100,9 @@ def create_export_job(
     if "kb" in export_types:
         rows = (
             db.query(KbDocument)
-            .filter(KbDocument.member_id == user_id, KbDocument.masked_path.is_not(None))
+            .filter(
+                KbDocument.member_id == user_id, KbDocument.masked_path.is_not(None)
+            )
             .all()
         )
         for row in rows:
@@ -129,7 +136,11 @@ def create_export_job(
                     f"chat/{item.item_id}.json",
                     json.dumps(meta, ensure_ascii=False, indent=2),
                 )
-            elif item.item_type == "kb_document" and include_sanitized_text and item.sanitized_path:
+            elif (
+                item.item_type == "kb_document"
+                and include_sanitized_text
+                and item.sanitized_path
+            ):
                 path = Path(item.sanitized_path)
                 if path.exists():
                     zf.write(path, f"kb/{path.name}")
@@ -205,7 +216,9 @@ def list_export_candidates(
 
 def get_export_job(db: Session, user_id: str, job_id: str) -> dict:
     row = (
-        db.query(ExportJob).filter(ExportJob.id == job_id, ExportJob.created_by == user_id).first()
+        db.query(ExportJob)
+        .filter(ExportJob.id == job_id, ExportJob.created_by == user_id)
+        .first()
     )
     if not row:
         raise ExportError(8001, "Export job not found")
@@ -225,7 +238,9 @@ def get_export_job(db: Session, user_id: str, job_id: str) -> dict:
 
 def delete_export_job(db: Session, user_id: str, job_id: str) -> None:
     row = (
-        db.query(ExportJob).filter(ExportJob.id == job_id, ExportJob.created_by == user_id).first()
+        db.query(ExportJob)
+        .filter(ExportJob.id == job_id, ExportJob.created_by == user_id)
+        .first()
     )
     if not row:
         raise ExportError(8001, "Export job not found")
@@ -240,7 +255,9 @@ def delete_export_job(db: Session, user_id: str, job_id: str) -> None:
 
 def build_download_response(db: Session, user_id: str, job_id: str) -> FileResponse:
     row = (
-        db.query(ExportJob).filter(ExportJob.id == job_id, ExportJob.created_by == user_id).first()
+        db.query(ExportJob)
+        .filter(ExportJob.id == job_id, ExportJob.created_by == user_id)
+        .first()
     )
     if not row:
         raise ExportError(8001, "Export job not found")

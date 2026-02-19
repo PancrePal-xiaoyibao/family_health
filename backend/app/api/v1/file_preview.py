@@ -47,7 +47,9 @@ def preview_kb_document_api(
         .first()
     )
     if not row:
-        return error(7002, "Knowledge base document not found", trace_id, status_code=404)
+        return error(
+            7002, "Knowledge base document not found", trace_id, status_code=404
+        )
     doc, _kb = row
     path = doc.source_path if source == "raw" and doc.source_path else doc.masked_path
     if not path:

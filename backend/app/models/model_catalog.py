@@ -17,5 +17,7 @@ class ModelCatalog(Base):
     model_type: Mapped[str] = mapped_column(String(20), nullable=False, index=True)
     capabilities_json: Mapped[str] = mapped_column(Text, nullable=False, default="{}")
     updated_at: Mapped[datetime] = mapped_column(
-        DateTime(timezone=True), default=lambda: datetime.now(timezone.utc), nullable=False
+        DateTime(timezone=True),
+        default=lambda: datetime.now(timezone.utc),
+        nullable=False,
     )

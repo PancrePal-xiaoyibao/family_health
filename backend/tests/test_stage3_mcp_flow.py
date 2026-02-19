@@ -81,7 +81,10 @@ def test_mcp_server_and_agent_override_flow(client: TestClient):
         },
     )
     assert qa_override.status_code == 200
-    assert qa_override.json()["data"]["context"]["enabled_mcp_ids"] == [mcp_b_id, "not-exist"]
+    assert qa_override.json()["data"]["context"]["enabled_mcp_ids"] == [
+        mcp_b_id,
+        "not-exist",
+    ]
     assert len(qa_override.json()["data"]["tool_warnings"]) >= 1
 
 

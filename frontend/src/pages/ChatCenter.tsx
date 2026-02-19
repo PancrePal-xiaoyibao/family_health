@@ -16,6 +16,9 @@ const TEXT = {
     sessions: "会话",
     sessionConfig: "会话参数",
     newSession: "新建",
+    runtimeProfile: "Runtime Profile",
+    runtimeProfileDefault: "使用默认 Runtime Profile",
+    defaultTag: "默认",
     role: "医学角色",
     noRole: "不使用预置角色",
     customPrompt: "自定义角色提示词（会话级）",
@@ -59,13 +62,15 @@ const TEXT = {
     exportPdf: "导出 PDF",
     exportSession: "导出会话",
     includeReasoning: "保留思维链",
-    kb: "知识库",
+    kb: "知识库（可多选）",
     noKb: "不使用知识库",
     deleteLabel: "删除",
     share: "分享",
     selectAll: "全选",
     attach: "附件",
     mcp: "MCP",
+    done: "完成",
+    chooseFiles: "选择文件",
     pendingAttachment: "待发送附件",
     none: "无",
     copyMsg: "复制消息",
@@ -81,6 +86,9 @@ const TEXT = {
     sessions: "Sessions",
     sessionConfig: "Session config",
     newSession: "New",
+    runtimeProfile: "Runtime Profile",
+    runtimeProfileDefault: "Use default Runtime Profile",
+    defaultTag: "Default",
     role: "Medical Role",
     noRole: "No preset role",
     customPrompt: "Custom Role Prompt (session)",
@@ -124,13 +132,15 @@ const TEXT = {
     exportPdf: "Export PDF",
     exportSession: "Export Session",
     includeReasoning: "Include reasoning",
-    kb: "Knowledge Base",
+    kb: "Knowledge bases (multi)",
     noKb: "No knowledge base",
     deleteLabel: "Delete",
     share: "Share",
     selectAll: "Select all",
     attach: "Attach",
     mcp: "MCP",
+    done: "Done",
+    chooseFiles: "Choose files",
     pendingAttachment: "Pending attachments",
     none: "none",
     copyMsg: "Copy message",
@@ -187,6 +197,7 @@ export function ChatCenter({ token, locale }: { token: string; locale: Locale })
   const [sessionTitle, setSessionTitle] = useState("");
   const [sessionRoleId, setSessionRoleId] = useState("");
   const [sessionPrompt, setSessionPrompt] = useState("");
+  const [sessionProfileId, setSessionProfileId] = useState("");
   const [reasoningEnabled, setReasoningEnabled] = useState<boolean | null>(null);
   const [reasoningBudget, setReasoningBudget] = useState("");
   const [showReasoning, setShowReasoning] = useState(true);
@@ -195,6 +206,7 @@ export function ChatCenter({ token, locale }: { token: string; locale: Locale })
   const [createTitle, setCreateTitle] = useState("");
   const [createRoleId, setCreateRoleId] = useState("");
   const [createPrompt, setCreatePrompt] = useState("");
+  const [createProfileId, setCreateProfileId] = useState("");
   const [createReasoningEnabled, setCreateReasoningEnabled] = useState<boolean | null>(null);
   const [createReasoningBudget, setCreateReasoningBudget] = useState("");
   const [createShowReasoning, setCreateShowReasoning] = useState(true);
@@ -205,6 +217,8 @@ export function ChatCenter({ token, locale }: { token: string; locale: Locale })
   const [reasoningExpanded, setReasoningExpanded] = useState(true);
   const [isStreaming, setIsStreaming] = useState(false);
   const [showMcpPicker, setShowMcpPicker] = useState(false);
+  const [showKbPicker, setShowKbPicker] = useState(false);
+  const [showAttachPicker, setShowAttachPicker] = useState(false);
   const [message, setMessage] = useState<string>(text.sessionReady);
   const [selectedMcpIds, setSelectedMcpIds] = useState<string[]>([]);
   const [attachmentIds, setAttachmentIds] = useState<string[]>([]);
@@ -212,7 +226,7 @@ export function ChatCenter({ token, locale }: { token: string; locale: Locale })
   const [selectedSessionIds, setSelectedSessionIds] = useState<string[]>([]);
   const [selectedMessageIds, setSelectedMessageIds] = useState<string[]>([]);
   const [reasoningByMessageId, setReasoningByMessageId] = useState<Record<string, string>>({});
-  const [selectedKbId, setSelectedKbId] = useState<string>("");
+  const [selectedKbIds, setSelectedKbIds] = useState<string[]>([]);
   const [exportMenuSessionId, setExportMenuSessionId] = useState<string | null>(null);
   const [exportIncludeReasoning, setExportIncludeReasoning] = useState<boolean>(true);
   const [uploadModalOpen, setUploadModalOpen] = useState(false);
@@ -220,6 +234,11 @@ export function ChatCenter({ token, locale }: { token: string; locale: Locale })
   const [pendingIndex, setPendingIndex] = useState(0);
   const [kbMode, setKbMode] = useState<"context" | "chat_default" | "kb">("context");
   const [kbTargetId, setKbTargetId] = useState<string>("");
+  const togglePicker = (target: "attach" | "mcp" | "kb") => {
+    setShowAttachPicker((prev) => (target === "attach" ? !prev : false));
+    setShowMcpPicker((prev) => (target === "mcp" ? !prev : false));
+    setShowKbPicker((prev) => (target === "kb" ? !prev : false));
+  };
   const [showSessionConfig] = useState(true);
   const [leftPaneWidth, setLeftPaneWidth] = useState<number>(() => {
     const raw = localStorage.getItem("fh_chat_left_width");
@@ -312,12 +331,6 @@ export function ChatCenter({ token, locale }: { token: string; locale: Locale })
       setProfiles(profileRes.items);
       setCatalog(catalogRes.items);
       setKbList(kbRes.items);
-      if (!selectedKbId) {
-        const chatDefault = kbRes.items.find((item) => item.name === "Chat Default KB");
-        if (chatDefault) {
-          setSelectedKbId(chatDefault.id);
-        }
-      }
       if (!activeSessionId && sessionRes.items.length > 0) {
         setActiveSessionId(sessionRes.items[0].id);
       }
@@ -361,11 +374,15 @@ export function ChatCenter({ token, locale }: { token: string; locale: Locale })
       setSessionTitle("");
       setSessionRoleId("");
       setSessionPrompt("");
+      setSessionProfileId("");
+      setSelectedKbIds([]);
       return;
     }
     setSessionTitle(activeSession.title || "");
     setSessionRoleId(activeSession.role_id || "");
     setSessionPrompt(activeSession.background_prompt || "");
+    setSessionProfileId(activeSession.runtime_profile_id || "");
+    setSelectedKbIds(activeSession.chat_kb_id ? [activeSession.chat_kb_id] : []);
     setSelectedMcpIds(activeSession.default_enabled_mcp_ids);
     setReasoningEnabled(activeSession.reasoning_enabled);
     setReasoningBudget(activeSession.reasoning_budget ? String(activeSession.reasoning_budget) : "");
@@ -377,6 +394,7 @@ export function ChatCenter({ token, locale }: { token: string; locale: Locale })
     setCreateTitle(`Chat ${new Date().toLocaleTimeString()}`);
     setCreateRoleId(sessionRoleId);
     setCreatePrompt(sessionPrompt);
+    setCreateProfileId(sessionProfileId);
     setCreateReasoningEnabled(reasoningEnabled);
     setCreateReasoningBudget(reasoningBudget);
     setCreateShowReasoning(showReasoning);
@@ -388,6 +406,7 @@ export function ChatCenter({ token, locale }: { token: string; locale: Locale })
     reasoningBudget,
     reasoningEnabled,
     selectedMcpIds,
+    sessionProfileId,
     sessionPrompt,
     sessionRoleId,
     showReasoning,
@@ -404,7 +423,7 @@ export function ChatCenter({ token, locale }: { token: string; locale: Locale })
       const session = await api.createChatSession(
         {
           title: createTitle.trim() || `Chat ${new Date().toLocaleTimeString()}`,
-          runtime_profile_id: null,
+          runtime_profile_id: createProfileId || null,
           role_id: createRoleId || null,
           background_prompt: createPrompt.trim() || null,
           reasoning_enabled: createReasoningEnabled,
@@ -565,6 +584,7 @@ export function ChatCenter({ token, locale }: { token: string; locale: Locale })
         activeSessionId,
         {
           title: sessionTitle.trim() || undefined,
+          runtime_profile_id: sessionProfileId || null,
           role_id: sessionRoleId || null,
           background_prompt: sessionPrompt.trim() || null,
           default_enabled_mcp_ids: selectedMcpIds,
@@ -589,8 +609,8 @@ export function ChatCenter({ token, locale }: { token: string; locale: Locale })
       setMessage(text.imageBlocked);
       return;
     }
-    if (!kbTargetId && selectedKbId) {
-      setKbTargetId(selectedKbId);
+    if (!kbTargetId && selectedKbIds.length > 0) {
+      setKbTargetId(selectedKbIds[0]);
     }
     setPendingFiles(files);
     setPendingIndex(0);
@@ -629,7 +649,7 @@ export function ChatCenter({ token, locale }: { token: string; locale: Locale })
         {
           session_id: activeSessionId,
           query: normalized,
-          kb_id: selectedKbId || null,
+          kb_ids: selectedKbIds.length > 0 ? selectedKbIds : null,
           enabled_mcp_ids: selectedMcpIds,
           attachments_ids: attachmentIds,
         },
@@ -792,6 +812,16 @@ export function ChatCenter({ token, locale }: { token: string; locale: Locale })
                 {roles.map((item) => <option key={item.id} value={item.id}>{item.name}</option>)}
               </select>
             </label>
+            <label>{text.runtimeProfile}
+              <select value={sessionProfileId} onChange={(e) => setSessionProfileId(e.target.value)} disabled={!activeSessionId}>
+                <option value="">{text.runtimeProfileDefault}</option>
+                {profiles.map((item) => (
+                  <option key={item.id} value={item.id}>
+                    {item.name}{item.is_default ? ` (${text.defaultTag})` : ""}
+                  </option>
+                ))}
+              </select>
+            </label>
             <label>{text.customPrompt}
               <textarea value={sessionPrompt} onChange={(e) => setSessionPrompt(e.target.value)} placeholder={text.customPromptPlaceholder} disabled={!activeSessionId} />
             </label>
@@ -952,26 +982,76 @@ export function ChatCenter({ token, locale }: { token: string; locale: Locale })
         </div>
 
         <div className="composer">
-          <div className="icon-actions">
-            <button type="button" className="icon-btn" title={text.attach} onClick={() => fileInputRef.current?.click()}>
+          <div className="composer-toolbar">
+            <button type="button" className="icon-btn" title={text.attach} onClick={() => togglePicker("attach")}>
               <Icon d="M21.44 11.05l-8.49 8.49a6 6 0 0 1-8.49-8.49l8.49-8.49a4 4 0 1 1 5.66 5.66l-8.49 8.49a2 2 0 1 1-2.83-2.83l7.78-7.78" />
             </button>
-            <button type="button" className={showMcpPicker ? "icon-btn" : "icon-btn"} title={text.mcp} onClick={() => setShowMcpPicker((s) => !s)}>
+            <button type="button" className="icon-btn" title={text.mcp} onClick={() => togglePicker("mcp")}>
               <Icon d="M12 2v20M2 12h20M5 5l14 14M19 5L5 19" />
+            </button>
+            <button type="button" className="icon-btn" title={text.kb} onClick={() => togglePicker("kb")}>
+              <Icon d="M4 6h16M4 12h16M4 18h16" />
             </button>
             <small className="muted">{text.pendingAttachment}: {attachmentNames.join(", ") || text.none}</small>
           </div>
-          {showMcpPicker && (
-            <select multiple value={selectedMcpIds} onChange={(e) => setSelectedMcpIds(Array.from(e.target.selectedOptions).map((x) => x.value))}>
-              {mcpServers.map((item) => <option key={item.id} value={item.id}>{item.name}</option>)}
-            </select>
+          {showAttachPicker && (
+            <div className="composer-popover">
+              <div className="row-between">
+                <strong>{text.attach}</strong>
+                <button type="button" className="ghost" onClick={() => setShowAttachPicker(false)}>{text.done}</button>
+              </div>
+              <button type="button" onClick={() => fileInputRef.current?.click()}>{text.chooseFiles}</button>
+              <small className="muted">{text.pendingAttachment}: {attachmentNames.join(", ") || text.none}</small>
+            </div>
           )}
-          <label>{text.kb}
-            <select value={selectedKbId} onChange={(e) => setSelectedKbId(e.target.value)}>
-              <option value="">{text.noKb}</option>
-              {kbList.map((item) => <option key={item.id} value={item.id}>{item.name}</option>)}
-            </select>
-          </label>
+          {showMcpPicker && (
+            <div className="composer-popover">
+              <div className="row-between">
+                <strong>{text.mcp}</strong>
+                <button type="button" className="ghost" onClick={() => setShowMcpPicker(false)}>{text.done}</button>
+              </div>
+              <div className="kb-checklist">
+                {mcpServers.length === 0 && <span className="muted">{text.none}</span>}
+                {mcpServers.map((item) => (
+                  <label key={item.id} className="inline-check">
+                    <input
+                      type="checkbox"
+                      checked={selectedMcpIds.includes(item.id)}
+                      onChange={(e) => {
+                        const checked = e.target.checked;
+                        setSelectedMcpIds((prev) => (checked ? [...prev, item.id] : prev.filter((x) => x !== item.id)));
+                      }}
+                    />
+                    {item.name}
+                  </label>
+                ))}
+              </div>
+            </div>
+          )}
+          {showKbPicker && (
+            <div className="composer-popover">
+              <div className="row-between">
+                <strong>{text.kb}</strong>
+                <button type="button" className="ghost" onClick={() => setShowKbPicker(false)}>{text.done}</button>
+              </div>
+              <div className="kb-checklist">
+                {kbList.length === 0 && <span className="muted">{text.none}</span>}
+                {kbList.map((item) => (
+                  <label key={item.id} className="inline-check">
+                    <input
+                      type="checkbox"
+                      checked={selectedKbIds.includes(item.id)}
+                      onChange={(e) => {
+                        const checked = e.target.checked;
+                        setSelectedKbIds((prev) => (checked ? [...prev, item.id] : prev.filter((x) => x !== item.id)));
+                      }}
+                    />
+                    {item.name}
+                  </label>
+                ))}
+              </div>
+            </div>
+          )}
           <textarea value={query} onPaste={(e) => void onPaste(e)} onChange={(e) => setQuery(e.target.value)} placeholder={text.queryPlaceholder} />
           <input ref={fileInputRef} type="file" multiple style={{ display: "none" }} onChange={(e) => openUploadModal(Array.from(e.target.files ?? []))} />
           <button type="button" onClick={sendQa} disabled={!activeSessionId || isStreaming}>{text.send}</button>
@@ -989,6 +1069,16 @@ export function ChatCenter({ token, locale }: { token: string; locale: Locale })
               <select value={createRoleId} onChange={(e) => setCreateRoleId(e.target.value)}>
                 <option value="">{text.noRole}</option>
                 {roles.map((item) => <option key={item.id} value={item.id}>{item.name}</option>)}
+              </select>
+            </label>
+            <label>{text.runtimeProfile}
+              <select value={createProfileId} onChange={(e) => setCreateProfileId(e.target.value)}>
+                <option value="">{text.runtimeProfileDefault}</option>
+                {profiles.map((item) => (
+                  <option key={item.id} value={item.id}>
+                    {item.name}{item.is_default ? ` (${text.defaultTag})` : ""}
+                  </option>
+                ))}
               </select>
             </label>
             <label>{text.customPrompt}
@@ -1047,10 +1137,11 @@ export function ChatCenter({ token, locale }: { token: string; locale: Locale })
             setAttachmentIds((prev) => [...prev, res.id]);
             setAttachmentNames((prev) => [...prev, pendingFile.name]);
             setMessage(`${text.uploadDone}: ${pendingFile.name}`);
-            if (res.kb_id) {
+            const storedKbId = res.kb_id ?? "";
+            if (storedKbId) {
               const kbRes = await api.listKb(token);
               setKbList(kbRes.items);
-              setSelectedKbId(res.kb_id);
+              setSelectedKbIds((prev) => (prev.includes(storedKbId) ? prev : [...prev, storedKbId]));
             }
           } catch (error) {
             setMessage(error instanceof ApiError ? error.message : text.uploadFailed);
@@ -1083,7 +1174,7 @@ export function ChatCenter({ token, locale }: { token: string; locale: Locale })
             </label>
             <label className="inline-check">
               <input type="radio" name="kbMode" checked={kbMode === "chat_default"} onChange={() => setKbMode("chat_default")} />
-              {locale === "zh" ? "进入默认 Chat Default KB" : "Store in Chat Default KB"}
+              {locale === "zh" ? "进入当前会话 ChatDB" : "Store in session ChatDB"}
             </label>
             <label className="inline-check">
               <input type="radio" name="kbMode" checked={kbMode === "kb"} onChange={() => setKbMode("kb")} />

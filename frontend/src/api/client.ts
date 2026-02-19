@@ -322,7 +322,7 @@ export const api = {
     payload: {
       session_id: string;
       query?: string;
-      kb_id?: string | null;
+      kb_ids?: string[] | null;
       background_prompt?: string;
       enabled_mcp_ids?: string[];
       runtime_profile_id?: string | null;
@@ -339,7 +339,7 @@ export const api = {
     payload: {
       session_id: string;
       query?: string;
-      kb_id?: string | null;
+      kb_ids?: string[] | null;
       background_prompt?: string;
       enabled_mcp_ids?: string[];
       runtime_profile_id?: string | null;

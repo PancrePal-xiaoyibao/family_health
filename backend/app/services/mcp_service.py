@@ -186,10 +186,14 @@ def replace_agent_bindings(
     return rows
 
 
-def list_agent_bindings(db: Session, user_id: str, agent_name: str) -> list[AgentMcpBinding]:
+def list_agent_bindings(
+    db: Session, user_id: str, agent_name: str
+) -> list[AgentMcpBinding]:
     return (
         db.query(AgentMcpBinding)
-        .filter(AgentMcpBinding.user_id == user_id, AgentMcpBinding.agent_name == agent_name)
+        .filter(
+            AgentMcpBinding.user_id == user_id, AgentMcpBinding.agent_name == agent_name
+        )
         .order_by(AgentMcpBinding.priority.asc())
         .all()
     )
@@ -238,7 +242,8 @@ def route_tools(
 
     with ThreadPoolExecutor(max_workers=max_workers) as pool:
         futures = {
-            pool.submit(_call_single_tool, server, query): server for server in ordered_servers
+            pool.submit(_call_single_tool, server, query): server
+            for server in ordered_servers
         }
         for future in as_completed(futures):
             server = futures[future]

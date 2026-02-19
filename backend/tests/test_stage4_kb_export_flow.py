@@ -67,7 +67,9 @@ def test_kb_build_retrieve_and_export_flow(client: TestClient):
     assert get_job_resp.status_code == 200
     assert get_job_resp.json()["data"]["status"] == "done"
 
-    download_resp = client.get(f"/api/v1/exports/jobs/{job_id}/download", headers=headers)
+    download_resp = client.get(
+        f"/api/v1/exports/jobs/{job_id}/download", headers=headers
+    )
     assert download_resp.status_code == 200
     assert download_resp.headers["content-type"] in {
         "application/zip",

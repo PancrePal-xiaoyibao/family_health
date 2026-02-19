@@ -17,6 +17,7 @@ from app.schemas.chat import (
 )
 from app.services.chat_service import (
     ChatError,
+    UNSET,
     add_attachment,
     add_message,
     bulk_delete_messages,
@@ -31,11 +32,12 @@ from app.services.chat_service import (
     list_messages,
     list_sessions,
     session_to_dict,
+    ensure_session_chat_kb,
     update_session,
 )
 from app.services.desensitization_service import DesensitizationError, create_rule
 from app.services.file_text_extract import extract_text_from_file
-from app.services.knowledge_base_service import KbError, ensure_chat_default_kb, ingest_text_to_kb
+from app.services.knowledge_base_service import KbError, ingest_text_to_kb
 
 router = APIRouter()
 
@@ -85,7 +87,9 @@ def list_session_api(
         page=safe_page,
         page_size=safe_page_size,
     )
-    return ok({"total": total, "items": [session_to_dict(row) for row in items]}, trace_id)
+    return ok(
+        {"total": total, "items": [session_to_dict(row) for row in items]}, trace_id
+    )
 
 
 @router.patch("/chat/sessions/{session_id}")
@@ -97,13 +101,18 @@ def update_session_api(
     db: Session = Depends(get_db),
 ):
     trace_id = trace_id_from_request(request)
+    runtime_profile_id = (
+        payload.runtime_profile_id
+        if "runtime_profile_id" in payload.model_fields_set
+        else UNSET
+    )
     try:
         row = update_session(
             db,
             session_id=session_id,
             user_id=user.id,
             title=payload.title,
-            runtime_profile_id=payload.runtime_profile_id,
+            runtime_profile_id=runtime_profile_id,
             role_id=payload.role_id,
             background_prompt=payload.background_prompt,
             reasoning_enabled=payload.reasoning_enabled,
@@ -142,7 +151,9 @@ def copy_session_api(
 ):
     trace_id = trace_id_from_request(request)
     try:
-        row = copy_session(db, session_id=session_id, user_id=user.id, title_prefix="Copy")
+        row = copy_session(
+            db, session_id=session_id, user_id=user.id, title_prefix="Copy"
+        )
     except ChatError as exc:
         return error(exc.code, exc.message, trace_id, status_code=404)
     return ok(session_to_dict(row), trace_id)
@@ -157,7 +168,9 @@ def branch_session_api(
 ):
     trace_id = trace_id_from_request(request)
     try:
-        row = copy_session(db, session_id=session_id, user_id=user.id, title_prefix="Branch")
+        row = copy_session(
+            db, session_id=session_id, user_id=user.id, title_prefix="Branch"
+        )
     except ChatError as exc:
         return error(exc.code, exc.message, trace_id, status_code=404)
     return ok(session_to_dict(row), trace_id)
@@ -200,7 +213,12 @@ def bulk_export_session_api(
     db: Session = Depends(get_db),
 ):
     if not payload.session_ids:
-        return error(4006, "No session ids provided", trace_id_from_request(request), status_code=400)
+        return error(
+            4006,
+            "No session ids provided",
+            trace_id_from_request(request),
+            status_code=400,
+        )
     zip_bytes = bulk_export_sessions_zip(
         db,
         user_id=user.id,
@@ -210,7 +228,9 @@ def bulk_export_session_api(
     return Response(
         content=zip_bytes,
         media_type="application/zip",
-        headers={"Content-Disposition": 'attachment; filename="chat-sessions-export.zip"'},
+        headers={
+            "Content-Disposition": 'attachment; filename="chat-sessions-export.zip"'
+        },
     )
 
 
@@ -287,7 +307,9 @@ def delete_message_api(
 ):
     trace_id = trace_id_from_request(request)
     try:
-        delete_message(db, session_id=session_id, user_id=user.id, message_id=message_id)
+        delete_message(
+            db, session_id=session_id, user_id=user.id, message_id=message_id
+        )
     except ChatError as exc:
         return error(exc.code, exc.message, trace_id, status_code=404)
     return ok({"deleted": True}, trace_id)
@@ -339,7 +361,9 @@ async def create_attachment_api(
         if kb_mode in {"chat_default", "kb"}:
             target_kb_id = kb_id
             if kb_mode == "chat_default":
-                target_kb_id = ensure_chat_default_kb(db, user.id).id
+                target_kb_id = ensure_session_chat_kb(
+                    db, user_id=user.id, session_id=session_id
+                )
             if not target_kb_id:
                 raise ChatError(4002, "Knowledge base target missing")
             ingest_text_to_kb(
@@ -347,7 +371,9 @@ async def create_attachment_api(
                 kb_id=target_kb_id,
                 user_id=user.id,
                 title=file.filename or "attachment.txt",
-                content=extract_text_from_file(file.filename or "attachment.txt", file_bytes),
+                content=extract_text_from_file(
+                    file.filename or "attachment.txt", file_bytes
+                ),
                 source_type="chat_attachment",
                 source_path=row.raw_path,
             )
@@ -445,7 +471,9 @@ def update_rule_api(
     trace_id = trace_id_from_request(request)
     row = (
         db.query(DesensitizationRule)
-        .filter(DesensitizationRule.id == rule_id, DesensitizationRule.user_id == user.id)
+        .filter(
+            DesensitizationRule.id == rule_id, DesensitizationRule.user_id == user.id
+        )
         .first()
     )
     if not row:
@@ -479,7 +507,9 @@ def delete_rule_api(
     trace_id = trace_id_from_request(request)
     row = (
         db.query(DesensitizationRule)
-        .filter(DesensitizationRule.id == rule_id, DesensitizationRule.user_id == user.id)
+        .filter(
+            DesensitizationRule.id == rule_id, DesensitizationRule.user_id == user.id
+        )
         .first()
     )
     if not row:
@@ -495,9 +525,37 @@ def list_presets_api(
 ):
     trace_id = trace_id_from_request(request)
     presets = [
-        {"key": "PHONE", "label": "Phone", "rule_type": "regex", "pattern": r"\b1\d{10}\b", "replacement_token": "[[PHONE]]", "tag": "电话"},
-        {"key": "EMAIL", "label": "Email", "rule_type": "regex", "pattern": r"[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}", "replacement_token": "[[EMAIL]]", "tag": "邮箱"},
-        {"key": "ID_CN", "label": "ID Card (CN)", "rule_type": "regex", "pattern": r"\b\d{15,18}[\dXx]\b", "replacement_token": "[[ID_CARD]]", "tag": "身份证"},
-        {"key": "NAME", "label": "Name", "rule_type": "literal", "pattern": "", "replacement_token": "[[NAME]]", "tag": "姓名"},
+        {
+            "key": "PHONE",
+            "label": "Phone",
+            "rule_type": "regex",
+            "pattern": r"\b1\d{10}\b",
+            "replacement_token": "[[PHONE]]",
+            "tag": "电话",
+        },
+        {
+            "key": "EMAIL",
+            "label": "Email",
+            "rule_type": "regex",
+            "pattern": r"[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}",
+            "replacement_token": "[[EMAIL]]",
+            "tag": "邮箱",
+        },
+        {
+            "key": "ID_CN",
+            "label": "ID Card (CN)",
+            "rule_type": "regex",
+            "pattern": r"\b\d{15,18}[\dXx]\b",
+            "replacement_token": "[[ID_CARD]]",
+            "tag": "身份证",
+        },
+        {
+            "key": "NAME",
+            "label": "Name",
+            "rule_type": "literal",
+            "pattern": "",
+            "replacement_token": "[[NAME]]",
+            "tag": "姓名",
+        },
     ]
     return ok({"items": presets}, trace_id)

@@ -70,6 +70,7 @@ export type ChatSession = {
   title: string;
   archived: boolean;
   runtime_profile_id: string | null;
+  chat_kb_id?: string | null;
   role_id: string | null;
   background_prompt: string | null;
   reasoning_enabled: boolean | null;

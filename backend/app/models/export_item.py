@@ -19,5 +19,7 @@ class ExportItem(Base):
     sanitized_path: Mapped[str | None] = mapped_column(Text, nullable=True)
     meta_json: Mapped[str] = mapped_column(Text, nullable=False, default="{}")
     created_at: Mapped[datetime] = mapped_column(
-        DateTime(timezone=True), default=lambda: datetime.now(timezone.utc), nullable=False
+        DateTime(timezone=True),
+        default=lambda: datetime.now(timezone.utc),
+        nullable=False,
     )

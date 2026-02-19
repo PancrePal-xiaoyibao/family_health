@@ -13,10 +13,15 @@
 
 新增会话参数：
 - `role_id`
+- `runtime_profile_id`（可选，`null` 表示使用默认 Runtime Profile）
+- `chat_kb_id`（系统自动生成的会话 ChatDB）
 - `background_prompt`
 - `reasoning_enabled`（`null/true/false`）
 - `reasoning_budget`（整数）
 - `show_reasoning`（是否回传 reasoning 流）
+
+更新会话参数：
+- `PATCH /api/v1/chat/sessions/{id}` 支持传 `runtime_profile_id=null`，将该会话恢复为默认 Runtime Profile。
 
 ## 2) 消息管理
 - `POST /api/v1/chat/sessions/{id}/messages`
@@ -37,7 +42,8 @@
   2. 转文本并线性脱敏
   3. 脱敏文本写入 `data/sanitized_workspace/`
   4. 仅 `parse_status=done` 可用于 Agent
-  5. 若 `kb_mode` 指定入库，将同步写入知识库
+  5. 若 `kb_mode=chat_default`，系统会为该会话生成专属 ChatDB（命名：`会话名 + chatdb`）并入库
+  6. 若 `kb_mode=kb`，写入指定知识库
 
 ## 4) 脱敏规则
 - `POST /api/v1/desensitization/rules`（登录用户）

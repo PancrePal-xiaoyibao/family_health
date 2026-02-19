@@ -41,7 +41,9 @@ def _provider_to_dict(row: ModelProvider) -> dict:
         "provider_name": row.provider_name,
         "base_url": row.base_url,
         "enabled": row.enabled,
-        "last_refresh_at": row.last_refresh_at.isoformat() if row.last_refresh_at else None,
+        "last_refresh_at": (
+            row.last_refresh_at.isoformat() if row.last_refresh_at else None
+        ),
         "updated_at": row.updated_at.isoformat(),
     }
 
@@ -99,7 +101,14 @@ def list_provider_api(
     user: User = Depends(current_user),
 ):
     trace_id = trace_id_from_request(request)
-    return ok({"items": [_provider_to_dict(row) for row in list_providers(db, user_id=user.id)]}, trace_id)
+    return ok(
+        {
+            "items": [
+                _provider_to_dict(row) for row in list_providers(db, user_id=user.id)
+            ]
+        },
+        trace_id,
+    )
 
 
 @router.get("/model-provider-presets")
@@ -180,7 +189,9 @@ def list_catalog_api(
     user: User = Depends(current_user),
 ):
     trace_id = trace_id_from_request(request)
-    rows = list_catalog(db, user_id=user.id, provider_id=provider_id, model_type=model_type)
+    rows = list_catalog(
+        db, user_id=user.id, provider_id=provider_id, model_type=model_type
+    )
     return ok({"items": [_catalog_to_dict(row) for row in rows]}, trace_id)
 
 

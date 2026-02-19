@@ -46,14 +46,18 @@ def bootstrap_owner_api(
 def login_api(payload: LoginRequest, request: Request, db: Session = Depends(get_db)):
     trace_id = trace_id_from_request(request)
     try:
-        result = login(db, payload.username, payload.password, trace_id, payload.device_label)
+        result = login(
+            db, payload.username, payload.password, trace_id, payload.device_label
+        )
     except AuthError as exc:
         return error(exc.code, exc.message, trace_id, status_code=401)
     return ok(result, trace_id)
 
 
 @router.post("/register")
-def register_api(payload: RegisterRequest, request: Request, db: Session = Depends(get_db)):
+def register_api(
+    payload: RegisterRequest, request: Request, db: Session = Depends(get_db)
+):
     trace_id = trace_id_from_request(request)
     try:
         user = register_user(
@@ -69,7 +73,9 @@ def register_api(payload: RegisterRequest, request: Request, db: Session = Depen
 
 
 @router.post("/refresh")
-def refresh_api(payload: RefreshRequest, request: Request, db: Session = Depends(get_db)):
+def refresh_api(
+    payload: RefreshRequest, request: Request, db: Session = Depends(get_db)
+):
     trace_id = trace_id_from_request(request)
     try:
         token = decode_token(payload.refresh_token)
@@ -78,7 +84,9 @@ def refresh_api(payload: RefreshRequest, request: Request, db: Session = Depends
     if token.get("type") != "refresh":
         return error(2004, "Invalid refresh token", trace_id, status_code=401)
     try:
-        result = rotate_refresh_token(db, trace_id, token.get("sub"), payload.refresh_token)
+        result = rotate_refresh_token(
+            db, trace_id, token.get("sub"), payload.refresh_token
+        )
     except AuthError as exc:
         return error(exc.code, exc.message, trace_id, status_code=401)
     return ok(result, trace_id)
@@ -106,7 +114,12 @@ def create_user_api(
     trace_id = trace_id_from_request(request)
     try:
         user = create_user(
-            db, trace_id, payload.username, payload.password, payload.display_name, payload.role
+            db,
+            trace_id,
+            payload.username,
+            payload.password,
+            payload.display_name,
+            payload.role,
         )
     except AuthError as exc:
         return error(exc.code, exc.message, trace_id, status_code=400)

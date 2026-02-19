@@ -39,4 +39,3 @@ def get_role_prompt(role_id: str) -> str:
     if not path.exists():
         raise FileNotFoundError(role_id)
     return path.read_text(encoding="utf-8")
-

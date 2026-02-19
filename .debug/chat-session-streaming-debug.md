@@ -190,3 +190,83 @@
   - `frontend/src/pages/ChatCenter.tsx`
 - 验证
   - `npm run build` 通过
+
+## [2026-02-19 14:10] 会话 ChatDB + 多知识库挂载
+- 问题描述
+  - Runtime Profile 中填写的 embedding/reranker 未用于会话上传 RAG。
+  - Chat 只能挂载单一知识库，无法多选合并检索。
+- 根因定位
+  - 附件入库仍写入全局 Chat Default KB，未按会话配置生成专属 ChatDB。
+  - Agent QA 仅支持 `kb_id` 单值。
+- 解决方案
+  - 新增会话级 `chat_kb_id`，会话创建时按 `会话名 + chatdb` 自动生成 ChatDB，使用会话 Runtime Profile 的 embedding/reranker。
+  - 附件 `kb_mode=chat_default` 改为写入当前会话 ChatDB。
+  - Agent QA 支持 `kb_ids` 多选并合并检索结果。
+  - 前端 KB 选择改为多选，上传入口文案更新为“当前会话 ChatDB”。
+- 影响文件
+  - `backend/app/models/chat_session.py`
+  - `backend/app/core/schema_migration.py`
+  - `backend/app/services/chat_service.py`
+  - `backend/app/api/v1/chat.py`
+  - `backend/app/schemas/agent.py`
+  - `backend/app/api/v1/agent.py`
+  - `backend/app/services/agent_service.py`
+  - `frontend/src/api/client.ts`
+  - `frontend/src/api/types.ts`
+  - `frontend/src/pages/ChatCenter.tsx`
+  - `docs/USER_GUIDE.md`
+  - `doc/api/chat.md`
+  - `doc/api/agent.md`
+- 验证
+  - `uv run ruff check .` 通过
+  - `uv run pytest` 失败：`snap-confine` 权限不足（cap_dac_override）
+  - `npm run build` 通过
+
+## [2026-02-19 14:30] ChatBox 工具栏弹出式选择
+- 问题描述
+  - ChatBox 上方控件过多，知识库选择缺少明确选中反馈。
+- 解决方案
+  - ChatBox 工具栏改为三个图标（附件/MCP/知识库）点击弹出小窗选择。
+  - 知识库多选改为复选列表，选中有打钩反馈。
+  - MCP 多选改为复选列表，选中有打钩反馈。
+- 影响文件
+  - `frontend/src/pages/ChatCenter.tsx`
+  - `frontend/src/styles/global.css`
+  - `docs/USER_GUIDE.md`
+- 验证
+  - `npm run build` 通过
+
+## [2026-02-19 15:10] KB 未就绪导致 QA 流式异常
+- 问题描述
+  - QA/stream 在 KB 状态为非 ready/building/failed 时抛异常，中断流式回复。
+- 根因定位
+  - `retrieve_from_kb` 对未就绪 KB 抛 `KbError(7003)`，上层直接转换为 `ChatError`。
+- 解决方案
+  - 将 `KbError(7003)` 降级为 warning，跳过该 KB，继续执行 QA。
+  - warning 合并到 `tool_warnings` 返回。
+- 影响文件
+  - `backend/app/services/agent_service.py`
+- 验证
+  - `uv run ruff check .` 通过
+
+## [2026-02-19 13:10] 会话 Runtime Profile 绑定与可编辑
+- 问题描述
+  - Runtime Profile 支持多套配置，但新建会话与既有会话无法选择/切换具体组合。
+- 根因定位
+  - ChatCenter 未提供运行时配置选择；创建时固定传 `runtime_profile_id: null`。
+  - 后端 `PATCH /chat/sessions/{id}` 无法显式清空 runtime_profile（`null` 被当成“未变更”）。
+- 解决方案
+  - 会话参数与新建弹窗新增 Runtime Profile 下拉，支持“使用默认 Runtime Profile”。
+  - 创建/更新会话传入所选 `runtime_profile_id`。
+  - 后端更新接口支持显式 `null`：若请求体包含 `runtime_profile_id` 字段则更新（含清空）。
+- 影响文件
+  - `frontend/src/pages/ChatCenter.tsx`
+  - `backend/app/api/v1/chat.py`
+  - `backend/app/services/chat_service.py`
+  - `docs/USER_GUIDE.md`
+  - `doc/api/chat.md`
+- 验证
+  - `uv sync --extra dev` 完成（新增 `black`）
+  - `uv run ruff check .` 通过
+  - `uv run pytest` 失败：`snap-confine` 权限不足（cap_dac_override）
+  - `npm run build` 通过

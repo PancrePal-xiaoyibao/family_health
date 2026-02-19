@@ -10,7 +10,9 @@ class LlmRuntimeProfile(Base):
     __tablename__ = "llm_runtime_profiles"
 
     id: Mapped[str] = mapped_column(String(36), primary_key=True)
-    user_id: Mapped[str] = mapped_column(String(36), ForeignKey("users.id"), nullable=False, index=True)
+    user_id: Mapped[str] = mapped_column(
+        String(36), ForeignKey("users.id"), nullable=False, index=True
+    )
     name: Mapped[str] = mapped_column(String(64), nullable=False, index=True)
     llm_model_id: Mapped[str | None] = mapped_column(String(36), nullable=True)
     embedding_model_id: Mapped[str | None] = mapped_column(String(36), nullable=True)

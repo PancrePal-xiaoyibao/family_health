@@ -12,7 +12,9 @@ class KnowledgeBaseCreateRequest(BaseModel):
     reranker_model_id: str | None = None
     semantic_model_id: str | None = None
     use_global_defaults: bool = True
-    retrieval_strategy: str = Field(default="hybrid", pattern="^(keyword|semantic|hybrid)$")
+    retrieval_strategy: str = Field(
+        default="hybrid", pattern="^(keyword|semantic|hybrid)$"
+    )
     keyword_weight: float = Field(default=0.5, ge=0, le=1)
     semantic_weight: float = Field(default=0.5, ge=0, le=1)
     rerank_weight: float = Field(default=0.0, ge=0, le=1)
@@ -29,7 +31,9 @@ class KnowledgeBaseUpdateRequest(BaseModel):
     reranker_model_id: str | None = None
     semantic_model_id: str | None = None
     use_global_defaults: bool | None = None
-    retrieval_strategy: str | None = Field(default=None, pattern="^(keyword|semantic|hybrid)$")
+    retrieval_strategy: str | None = Field(
+        default=None, pattern="^(keyword|semantic|hybrid)$"
+    )
     keyword_weight: float | None = Field(default=None, ge=0, le=1)
     semantic_weight: float | None = Field(default=None, ge=0, le=1)
     rerank_weight: float | None = Field(default=None, ge=0, le=1)

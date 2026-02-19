@@ -10,7 +10,9 @@ class AgentMcpBinding(Base):
     __tablename__ = "agent_mcp_bindings"
 
     id: Mapped[str] = mapped_column(String(36), primary_key=True)
-    user_id: Mapped[str] = mapped_column(String(36), ForeignKey("users.id"), nullable=False, index=True)
+    user_id: Mapped[str] = mapped_column(
+        String(36), ForeignKey("users.id"), nullable=False, index=True
+    )
     agent_name: Mapped[str] = mapped_column(String(50), nullable=False, index=True)
     mcp_server_id: Mapped[str] = mapped_column(
         String(36), ForeignKey("mcp_servers.id"), nullable=False, index=True

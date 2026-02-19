@@ -1,14 +1,22 @@
 def test_bootstrap_login_refresh_and_admin_create_user(client):
     bootstrap_res = client.post(
         "/api/v1/auth/bootstrap-owner",
-        json={"username": "owner", "password": "owner-pass-123", "display_name": "Owner"},
+        json={
+            "username": "owner",
+            "password": "owner-pass-123",
+            "display_name": "Owner",
+        },
     )
     assert bootstrap_res.status_code == 200
     assert bootstrap_res.json()["data"]["role"] == "owner"
 
     login_res = client.post(
         "/api/v1/auth/login",
-        json={"username": "owner", "password": "owner-pass-123", "device_label": "local"},
+        json={
+            "username": "owner",
+            "password": "owner-pass-123",
+            "device_label": "local",
+        },
     )
     assert login_res.status_code == 200
     token_data = login_res.json()["data"]
@@ -36,13 +44,21 @@ def test_bootstrap_login_refresh_and_admin_create_user(client):
 def test_bootstrap_owner_only_once(client):
     first = client.post(
         "/api/v1/auth/bootstrap-owner",
-        json={"username": "owner", "password": "owner-pass-123", "display_name": "Owner"},
+        json={
+            "username": "owner",
+            "password": "owner-pass-123",
+            "display_name": "Owner",
+        },
     )
     assert first.status_code == 200
 
     second = client.post(
         "/api/v1/auth/bootstrap-owner",
-        json={"username": "owner2", "password": "owner-pass-123", "display_name": "Owner2"},
+        json={
+            "username": "owner2",
+            "password": "owner-pass-123",
+            "display_name": "Owner2",
+        },
     )
     assert second.status_code == 400
     assert second.json()["code"] == 2001
@@ -51,7 +67,11 @@ def test_bootstrap_owner_only_once(client):
 def test_register_then_login(client):
     register_res = client.post(
         "/api/v1/auth/register",
-        json={"username": "member02", "password": "member-pass-123", "display_name": "Member 02"},
+        json={
+            "username": "member02",
+            "password": "member-pass-123",
+            "display_name": "Member 02",
+        },
     )
     assert register_res.status_code == 200
     assert register_res.json()["data"]["role"] == "member"
@@ -67,7 +87,11 @@ def test_register_then_login(client):
 def test_login_handles_naive_lock_until_without_500(client):
     bootstrap_res = client.post(
         "/api/v1/auth/bootstrap-owner",
-        json={"username": "owner", "password": "owner-pass-123", "display_name": "Owner"},
+        json={
+            "username": "owner",
+            "password": "owner-pass-123",
+            "display_name": "Owner",
+        },
     )
     assert bootstrap_res.status_code == 200
 

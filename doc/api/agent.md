@@ -10,6 +10,7 @@
 {
   "session_id": "...",
   "query": "",
+  "kb_ids": ["kb-a", "kb-b"],
   "background_prompt": "可选：仅本次请求覆盖会话角色提示词",
   "enabled_mcp_ids": ["mcp-a"],
   "runtime_profile_id": null,
@@ -22,10 +23,11 @@
 2. 读取会话历史并按窗口裁剪。
 3. 仅加载 `parse_status=done` 的脱敏附件文本。
 4. 支持“仅附件模式”：`query` 可为空，但 `attachments_ids` 至少一个。
-5. 计算 MCP 生效列表：本轮 > 会话默认 > 全局绑定。
-6. 并发执行 MCP，失败降级为 `tool_warnings`。
-7. 优先按 Runtime Profile 真实调用已配置 Provider（Gemini/OpenAI 兼容）；未配置时回退本地兜底回答。
-8. 生成 assistant 回答并入库。
+5. 若 `kb_ids` 传入多个，按各 KB 的检索配置获取结果并合并。
+6. 计算 MCP 生效列表：本轮 > 会话默认 > 全局绑定。
+7. 并发执行 MCP，失败降级为 `tool_warnings`。
+8. 优先按 Runtime Profile 真实调用已配置 Provider（Gemini/OpenAI 兼容）；未配置时回退本地兜底回答。
+9. 生成 assistant 回答并入库。
 
 流式事件格式（`qa/stream`）：
 - `{"type":"message","delta":"..."}`：回答增量

@@ -70,11 +70,17 @@ def kb_to_dict(row: KnowledgeBase) -> dict:
 def _global_profile_models(db: Session, user_id: str) -> dict[str, str | None]:
     row = (
         db.query(LlmRuntimeProfile)
-        .filter(LlmRuntimeProfile.user_id == user_id, LlmRuntimeProfile.is_default.is_(True))
+        .filter(
+            LlmRuntimeProfile.user_id == user_id, LlmRuntimeProfile.is_default.is_(True)
+        )
         .first()
     )
     if not row:
-        return {"embedding_model_id": None, "reranker_model_id": None, "semantic_model_id": None}
+        return {
+            "embedding_model_id": None,
+            "reranker_model_id": None,
+            "semantic_model_id": None,
+        }
     return {
         "embedding_model_id": row.embedding_model_id,
         "reranker_model_id": row.reranker_model_id,
@@ -135,14 +141,33 @@ def create_kb(
         chunk_overlap=chunk_overlap,
         top_k=top_k,
         rerank_top_n=rerank_top_n,
-        embedding_model_id=embedding_model_id or (defaults["embedding_model_id"] if use_global_defaults else None),
-        reranker_model_id=reranker_model_id or (defaults["reranker_model_id"] if use_global_defaults else None),
-        semantic_model_id=semantic_model_id or (defaults["semantic_model_id"] if use_global_defaults else None),
+        embedding_model_id=embedding_model_id
+        or (defaults["embedding_model_id"] if use_global_defaults else None),
+        reranker_model_id=reranker_model_id
+        or (defaults["reranker_model_id"] if use_global_defaults else None),
+        semantic_model_id=semantic_model_id
+        or (defaults["semantic_model_id"] if use_global_defaults else None),
         use_global_defaults=use_global_defaults,
-        retrieval_strategy=retrieval_strategy if not use_global_defaults else str(defaults["retrieval_strategy"]),
-        keyword_weight=keyword_weight if not use_global_defaults else float(defaults["keyword_weight"]),
-        semantic_weight=semantic_weight if not use_global_defaults else float(defaults["semantic_weight"]),
-        rerank_weight=rerank_weight if not use_global_defaults else float(defaults["rerank_weight"]),
+        retrieval_strategy=(
+            retrieval_strategy
+            if not use_global_defaults
+            else str(defaults["retrieval_strategy"])
+        ),
+        keyword_weight=(
+            keyword_weight
+            if not use_global_defaults
+            else float(defaults["keyword_weight"])
+        ),
+        semantic_weight=(
+            semantic_weight
+            if not use_global_defaults
+            else float(defaults["semantic_weight"])
+        ),
+        rerank_weight=(
+            rerank_weight
+            if not use_global_defaults
+            else float(defaults["rerank_weight"])
+        ),
         strategy_params_json=json.dumps(strategy_params or {}, ensure_ascii=False),
         status="draft",
     )
@@ -210,7 +235,9 @@ def update_kb(
         if value is not None:
             setattr(kb, field, value)
     if "strategy_params" in kwargs and kwargs["strategy_params"] is not None:
-        kb.strategy_params_json = json.dumps(kwargs["strategy_params"], ensure_ascii=False)
+        kb.strategy_params_json = json.dumps(
+            kwargs["strategy_params"], ensure_ascii=False
+        )
 
     if kb.use_global_defaults:
         defaults = get_kb_global_defaults(db, user_id)
@@ -237,7 +264,9 @@ def delete_kb(db: Session, kb_id: str, user_id: str) -> None:
             Path(doc.source_path).unlink(missing_ok=True)
     db.query(KbChunk).filter(KbChunk.kb_id == kb_id).delete()
     db.query(KbDocument).filter(KbDocument.kb_id == kb_id).delete()
-    db.query(KnowledgeBase).filter(KnowledgeBase.id == kb_id, KnowledgeBase.user_id == user_id).delete()
+    db.query(KnowledgeBase).filter(
+        KnowledgeBase.id == kb_id, KnowledgeBase.user_id == user_id
+    ).delete()
     db.commit()
 
 
@@ -270,14 +299,21 @@ def _create_doc_and_chunks(
         source_path=source_path,
     )
     safe_title = safe_storage_name(title, fallback="document")
-    masked_path = sanitized_workspace_root() / "knowledge_bases" / kb.id / f"{doc.id}_{safe_title}.md"
+    masked_path = (
+        sanitized_workspace_root()
+        / "knowledge_bases"
+        / kb.id
+        / f"{doc.id}_{safe_title}.md"
+    )
     masked_path.parent.mkdir(parents=True, exist_ok=True)
     masked_path.write_text(sanitized_text, encoding="utf-8")
     doc.masked_path = str(masked_path)
     doc.status = "indexed"
 
     chunk_count = 0
-    for idx, chunk_text in enumerate(_split_chunks(sanitized_text, kb.chunk_size, kb.chunk_overlap)):
+    for idx, chunk_text in enumerate(
+        _split_chunks(sanitized_text, kb.chunk_size, kb.chunk_overlap)
+    ):
         chunk_count += 1
         db.add(
             KbChunk(
@@ -296,7 +332,9 @@ def _create_doc_and_chunks(
 def ensure_chat_default_kb(db: Session, user_id: str) -> KnowledgeBase:
     existing = (
         db.query(KnowledgeBase)
-        .filter(KnowledgeBase.user_id == user_id, KnowledgeBase.name == "Chat Default KB")
+        .filter(
+            KnowledgeBase.user_id == user_id, KnowledgeBase.name == "Chat Default KB"
+        )
         .first()
     )
     if existing:
@@ -373,7 +411,10 @@ def build_kb(
     kb.status = "building"
 
     if clear_existing:
-        doc_ids = [row.id for row in db.query(KbDocument.id).filter(KbDocument.kb_id == kb_id).all()]
+        doc_ids = [
+            row.id
+            for row in db.query(KbDocument.id).filter(KbDocument.kb_id == kb_id).all()
+        ]
         if doc_ids:
             db.query(KbChunk).filter(KbChunk.document_id.in_(doc_ids)).delete()
         for row in db.query(KbDocument).filter(KbDocument.kb_id == kb_id).all():
@@ -414,7 +455,9 @@ def build_kb(
             )
 
     has_error = (
-        db.query(KbDocument).filter(KbDocument.kb_id == kb_id, KbDocument.status == "error").count()
+        db.query(KbDocument)
+        .filter(KbDocument.kb_id == kb_id, KbDocument.status == "error")
+        .count()
         > 0
     )
     kb.status = "failed" if has_error else "ready"
@@ -434,7 +477,9 @@ def upload_kb_document(
     kb = _ensure_kb(db, kb_id, user_id=user_id)
     kb.status = "building"
     safe_name = safe_storage_name(file_name, fallback="document.txt")
-    source_path = sanitized_workspace_root() / "knowledge_bases" / kb.id / "uploads" / safe_name
+    source_path = (
+        sanitized_workspace_root() / "knowledge_bases" / kb.id / "uploads" / safe_name
+    )
     source_path.parent.mkdir(parents=True, exist_ok=True)
     source_path.write_bytes(file_bytes)
     try:
@@ -491,7 +536,9 @@ def delete_kb_document(db: Session, kb_id: str, doc_id: str, user_id: str) -> No
 def retry_failed_documents(db: Session, kb_id: str, user_id: str) -> int:
     _ensure_kb(db, kb_id, user_id=user_id)
     rows = (
-        db.query(KbDocument).filter(KbDocument.kb_id == kb_id, KbDocument.status == "error").all()
+        db.query(KbDocument)
+        .filter(KbDocument.kb_id == kb_id, KbDocument.status == "error")
+        .all()
     )
     for row in rows:
         row.status = "pending"

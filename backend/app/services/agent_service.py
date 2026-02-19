@@ -37,7 +37,9 @@ def _load_params(profile: LlmRuntimeProfile) -> dict:
     return data if isinstance(data, dict) else {}
 
 
-def _resolve_runtime_profile(db, user_id: str, runtime_profile_id: str | None, session) -> LlmRuntimeProfile:
+def _resolve_runtime_profile(
+    db, user_id: str, runtime_profile_id: str | None, session
+) -> LlmRuntimeProfile:
     chosen_id = runtime_profile_id or session.runtime_profile_id
     query = db.query(LlmRuntimeProfile).filter(LlmRuntimeProfile.user_id == user_id)
     if chosen_id:
@@ -52,11 +54,15 @@ def _resolve_runtime_profile(db, user_id: str, runtime_profile_id: str | None, s
     return profile
 
 
-def _resolve_model_provider(db, user_id: str, profile: LlmRuntimeProfile) -> tuple[ModelCatalog, ModelProvider]:
+def _resolve_model_provider(
+    db, user_id: str, profile: LlmRuntimeProfile
+) -> tuple[ModelCatalog, ModelProvider]:
     if not profile.llm_model_id:
         raise ChatError(7003, "Runtime profile has no llm model")
 
-    model = db.query(ModelCatalog).filter(ModelCatalog.id == profile.llm_model_id).first()
+    model = (
+        db.query(ModelCatalog).filter(ModelCatalog.id == profile.llm_model_id).first()
+    )
     if not model:
         raise ChatError(7004, "LLM model not found in model catalog")
 
@@ -89,15 +95,21 @@ def _build_context_suffix(
             clipped.append(f"[Attachment {idx}]\n{normalized}")
         blocks.append("Sanitized attachment context:\n" + "\n\n".join(clipped))
     if mcp_results:
-        blocks.append("MCP tool outputs:\n" + "\n".join(str(item.get("output", "")) for item in mcp_results))
+        blocks.append(
+            "MCP tool outputs:\n"
+            + "\n".join(str(item.get("output", "")) for item in mcp_results)
+        )
     if kb_hits:
         kb_lines: list[str] = []
         for idx, hit in enumerate(kb_hits, start=1):
             text = str(hit.get("text") or hit.get("chunk_text") or "").strip()
             if len(text) > 800:
                 text = text[:800] + "\n...[truncated]"
+            kb_label = ""
+            if hit.get("kb_id"):
+                kb_label = f" kb={hit.get('kb_id')}"
             kb_lines.append(
-                f"[KB Hit {idx}] score={hit.get('score', 0)}\n{text}"
+                f"[KB Hit {idx}]{kb_label} score={hit.get('score', 0)}\n{text}"
             )
         blocks.append("Knowledge base retrieval:\n" + "\n\n".join(kb_lines))
     suffix = "\n\n" + "\n\n".join(blocks) if blocks else ""
@@ -127,7 +139,11 @@ def _effective_system_prompt(session, request_background_prompt: str | None) -> 
 
 
 def _reasoning_settings(session) -> tuple[bool | None, int | None, bool]:
-    return session.reasoning_enabled, session.reasoning_budget, bool(session.show_reasoning)
+    return (
+        session.reasoning_enabled,
+        session.reasoning_budget,
+        bool(session.show_reasoning),
+    )
 
 
 def _model_capabilities(model: ModelCatalog) -> dict:
@@ -175,7 +191,11 @@ def _openai_payload(
             payload["thinking"] = {
                 "type": "enabled" if reasoning_enabled else "disabled"
             }
-        if reasoning_budget is not None and reasoning_budget > 0 and "max_tokens" not in payload:
+        if (
+            reasoning_budget is not None
+            and reasoning_budget > 0
+            and "max_tokens" not in payload
+        ):
             payload["max_tokens"] = reasoning_budget
 
     return payload
@@ -194,14 +214,18 @@ def _openai_nonstream(
     with httpx.Client(timeout=60) as client:
         resp = client.post(url, json=payload, headers=headers)
     if resp.status_code >= 400:
-        raise ChatError(7006, f"LLM request failed: HTTP {resp.status_code} {resp.text[:200]}")
+        raise ChatError(
+            7006, f"LLM request failed: HTTP {resp.status_code} {resp.text[:200]}"
+        )
     data = resp.json()
     choices = data.get("choices") or []
     if not choices:
         raise ChatError(7007, "LLM response has no choices")
     message = choices[0].get("message") or {}
     answer = (message.get("content") or "").strip()
-    reasoning = (message.get("reasoning_content") or "").strip() if include_reasoning else ""
+    reasoning = (
+        (message.get("reasoning_content") or "").strip() if include_reasoning else ""
+    )
     if not answer:
         raise ChatError(7008, "LLM response content missing")
     return answer, reasoning
@@ -259,7 +283,9 @@ def _gemini_nonstream(
     with httpx.Client(timeout=60) as client:
         resp = client.post(url, json=payload)
     if resp.status_code >= 400:
-        raise ChatError(7006, f"Gemini request failed: HTTP {resp.status_code} {resp.text[:200]}")
+        raise ChatError(
+            7006, f"Gemini request failed: HTTP {resp.status_code} {resp.text[:200]}"
+        )
 
     data = resp.json()
     candidates = data.get("candidates") or []
@@ -299,7 +325,7 @@ def _prepare_context(
     user,
     session_id: str,
     query: str,
-    kb_id: str | None,
+    kb_ids: list[str] | None,
     background_prompt: str | None,
     attachments_ids: list[str] | None,
     enabled_mcp_ids: list[str] | None,
@@ -333,13 +359,17 @@ def _prepare_context(
     attachment_meta: list[dict] = []
     if attachments_ids:
         attachment_meta = get_attachment_meta(db, session_id, user.id, attachments_ids)
-        attachment_texts = get_attachment_texts(db, session_id, user.id, attachments_ids)
+        attachment_texts = get_attachment_texts(
+            db, session_id, user.id, attachments_ids
+        )
 
     if runtime_profile_id:
         session.runtime_profile_id = runtime_profile_id
         db.commit()
 
-    session_default_ids = get_session_default_mcp_ids(db, session_id=session_id, user_id=user.id)
+    session_default_ids = get_session_default_mcp_ids(
+        db, session_id=session_id, user_id=user.id
+    )
     effective_mcp_ids = get_effective_server_ids(
         db,
         user_id=user.id,
@@ -347,19 +377,34 @@ def _prepare_context(
         session_default_ids=session_default_ids,
         request_override_ids=enabled_mcp_ids,
     )
-    mcp_out = route_tools(db, user_id=user.id, enabled_server_ids=effective_mcp_ids, query=query)
+    mcp_out = route_tools(
+        db, user_id=user.id, enabled_server_ids=effective_mcp_ids, query=query
+    )
     kb_hits: list[dict] = []
-    if kb_id:
-        try:
-            kb_hits = retrieve_from_kb(
-                db,
-                kb_id=kb_id,
-                user_id=user.id,
-                query=normalized_query or "(attachment-only mode)",
-                top_k=None,
-            )
-        except KbError as exc:
-            raise ChatError(exc.code, exc.message) from exc
+    kb_warnings: list[str] = []
+    if kb_ids:
+        for kb_id in kb_ids:
+            if not kb_id:
+                continue
+            try:
+                hits = retrieve_from_kb(
+                    db,
+                    kb_id=kb_id,
+                    user_id=user.id,
+                    query=normalized_query or "(attachment-only mode)",
+                    top_k=None,
+                )
+                for hit in hits:
+                    hit["kb_id"] = kb_id
+                kb_hits.extend(hits)
+            except KbError as exc:
+                if exc.code == 7003:
+                    kb_warnings.append(f"Knowledge base not ready: {kb_id}")
+                    continue
+                raise ChatError(exc.code, exc.message) from exc
+        kb_hits.sort(
+            key=lambda item: (item.get("score", {}) or {}).get("total", 0), reverse=True
+        )
 
     suffix = _build_context_suffix(attachment_texts, mcp_out["results"], kb_hits)
     if trimmed and trimmed[-1]["role"] == "user":
@@ -372,6 +417,7 @@ def _prepare_context(
         "attachment_texts": attachment_texts,
         "mcp_out": mcp_out,
         "kb_hits": kb_hits,
+        "kb_warnings": kb_warnings,
         "effective_mcp_ids": effective_mcp_ids,
         "system_prompt": _effective_system_prompt(session, background_prompt),
         "runtime_profile_id": runtime_profile_id,
@@ -384,7 +430,7 @@ def run_agent_qa(
     user,
     session_id: str,
     query: str,
-    kb_id: str | None,
+    kb_ids: list[str] | None,
     background_prompt: str | None,
     attachments_ids: list[str] | None,
     enabled_mcp_ids: list[str] | None,
@@ -395,21 +441,28 @@ def run_agent_qa(
         user,
         session_id,
         query,
-        kb_id,
+        kb_ids,
         background_prompt,
         attachments_ids,
         enabled_mcp_ids,
         runtime_profile_id,
     )
     session = ctx["session"]
-    reasoning_enabled, reasoning_budget, include_reasoning = _reasoning_settings(session)
+    reasoning_enabled, reasoning_budget, include_reasoning = _reasoning_settings(
+        session
+    )
 
     reasoning_text = ""
     try:
         profile = _resolve_runtime_profile(db, user.id, runtime_profile_id, session)
         model, provider = _resolve_model_provider(db, user.id, profile)
-        if any(item.get("is_image") for item in ctx["attachment_meta"]) and not _model_supports_vision(model):
-            raise ChatError(7010, "Current model is not multimodal; image upload is disabled for this chat")
+        if any(
+            item.get("is_image") for item in ctx["attachment_meta"]
+        ) and not _model_supports_vision(model):
+            raise ChatError(
+                7010,
+                "Current model is not multimodal; image upload is disabled for this chat",
+            )
         params = _load_params(profile)
         provider_name = provider.provider_name.lower()
         if "gemini" in provider_name:
@@ -475,7 +528,7 @@ def run_agent_qa(
             "enabled_mcp_ids": ctx["effective_mcp_ids"],
         },
         "mcp_results": ctx["mcp_out"]["results"],
-        "tool_warnings": ctx["mcp_out"]["warnings"],
+        "tool_warnings": ctx["mcp_out"]["warnings"] + ctx.get("kb_warnings", []),
     }
 
 
@@ -488,7 +541,7 @@ def stream_agent_qa(
     user,
     session_id: str,
     query: str,
-    kb_id: str | None,
+    kb_ids: list[str] | None,
     background_prompt: str | None,
     attachments_ids: list[str] | None,
     enabled_mcp_ids: list[str] | None,
@@ -499,14 +552,16 @@ def stream_agent_qa(
         user,
         session_id,
         query,
-        kb_id,
+        kb_ids,
         background_prompt,
         attachments_ids,
         enabled_mcp_ids,
         runtime_profile_id,
     )
     session = ctx["session"]
-    reasoning_enabled, reasoning_budget, include_reasoning = _reasoning_settings(session)
+    reasoning_enabled, reasoning_budget, include_reasoning = _reasoning_settings(
+        session
+    )
 
     answer_buf: list[str] = []
     reasoning_buf: list[str] = []
@@ -514,8 +569,13 @@ def stream_agent_qa(
     try:
         profile = _resolve_runtime_profile(db, user.id, runtime_profile_id, session)
         model, provider = _resolve_model_provider(db, user.id, profile)
-        if any(item.get("is_image") for item in ctx["attachment_meta"]) and not _model_supports_vision(model):
-            raise ChatError(7010, "Current model is not multimodal; image upload is disabled for this chat")
+        if any(
+            item.get("is_image") for item in ctx["attachment_meta"]
+        ) and not _model_supports_vision(model):
+            raise ChatError(
+                7010,
+                "Current model is not multimodal; image upload is disabled for this chat",
+            )
         params = _load_params(profile)
         provider_name = provider.provider_name.lower()
 
@@ -533,7 +593,9 @@ def stream_agent_qa(
             with httpx.Client(timeout=120) as client:
                 with client.stream("POST", url, json=payload) as resp:
                     if resp.status_code >= 400:
-                        raise ChatError(7006, f"Gemini stream failed: HTTP {resp.status_code}")
+                        raise ChatError(
+                            7006, f"Gemini stream failed: HTTP {resp.status_code}"
+                        )
                     for line in resp.iter_lines():
                         if not line or not line.startswith("data:"):
                             continue
@@ -571,9 +633,13 @@ def stream_agent_qa(
                 "Content-Type": "application/json",
             }
             with httpx.Client(timeout=120) as client:
-                with client.stream("POST", provider.base_url, json=payload, headers=headers) as resp:
+                with client.stream(
+                    "POST", provider.base_url, json=payload, headers=headers
+                ) as resp:
                     if resp.status_code >= 400:
-                        raise ChatError(7006, f"LLM stream failed: HTTP {resp.status_code}")
+                        raise ChatError(
+                            7006, f"LLM stream failed: HTTP {resp.status_code}"
+                        )
                     for line in resp.iter_lines():
                         if not line or not line.startswith("data:"):
                             continue

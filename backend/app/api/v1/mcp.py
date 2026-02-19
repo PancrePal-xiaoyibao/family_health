@@ -78,7 +78,10 @@ def list_server_api(
     user: User = Depends(current_user),
 ):
     trace_id = trace_id_from_request(request)
-    return ok({"items": [_server_to_dict(row) for row in list_servers(db, user_id=user.id)]}, trace_id)
+    return ok(
+        {"items": [_server_to_dict(row) for row in list_servers(db, user_id=user.id)]},
+        trace_id,
+    )
 
 
 @router.patch("/mcp/servers/{server_id}")

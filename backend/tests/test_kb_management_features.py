@@ -65,7 +65,9 @@ def test_kb_management_with_upload_and_strategy(client: TestClient):
         files={
             "file": (
                 "kb.docx",
-                _build_minimal_docx("hypertension management and blood pressure monitoring"),
+                _build_minimal_docx(
+                    "hypertension management and blood pressure monitoring"
+                ),
                 "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
             )
         },
@@ -87,11 +89,15 @@ def test_kb_management_with_upload_and_strategy(client: TestClient):
     )
     assert query_resp.status_code == 200
 
-    docs_resp = client.get(f"/api/v1/knowledge-bases/{kb_id}/documents", headers=headers)
+    docs_resp = client.get(
+        f"/api/v1/knowledge-bases/{kb_id}/documents", headers=headers
+    )
     assert docs_resp.status_code == 200
     doc_id = docs_resp.json()["data"]["items"][0]["id"]
 
-    delete_doc_resp = client.delete(f"/api/v1/knowledge-bases/{kb_id}/documents/{doc_id}", headers=headers)
+    delete_doc_resp = client.delete(
+        f"/api/v1/knowledge-bases/{kb_id}/documents/{doc_id}", headers=headers
+    )
     assert delete_doc_resp.status_code == 200
 
     update_resp = client.patch(

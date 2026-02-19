@@ -23,8 +23,24 @@ class ModelRegistryError(Exception):
 
 _DEFAULT_DISCOVERY_BY_PROVIDER = {
     "gemini": [
-        ("gemini-2.0-flash", "llm", {"supports_reasoning_budget": True, "multimodal": True, "input_types": ["text", "image"]}),
-        ("gemini-2.0-pro", "llm", {"supports_reasoning_budget": True, "multimodal": True, "input_types": ["text", "image"]}),
+        (
+            "gemini-2.0-flash",
+            "llm",
+            {
+                "supports_reasoning_budget": True,
+                "multimodal": True,
+                "input_types": ["text", "image"],
+            },
+        ),
+        (
+            "gemini-2.0-pro",
+            "llm",
+            {
+                "supports_reasoning_budget": True,
+                "multimodal": True,
+                "input_types": ["text", "image"],
+            },
+        ),
         ("text-embedding-004", "embedding", {}),
     ],
     "deepseek": [
@@ -116,7 +132,10 @@ def _model_type_from_name(name: str) -> str:
         )
     ):
         return "embedding"
-    if any(token in lower for token in ("rerank", "reranker", "bge-reranker", "bce-reranker")):
+    if any(
+        token in lower
+        for token in ("rerank", "reranker", "bge-reranker", "bce-reranker")
+    ):
         return "reranker"
     return "llm"
 
@@ -160,7 +179,9 @@ def _discover_gemini_models(base_url: str, api_key: str) -> list[tuple[str, str,
     with httpx.Client(timeout=20) as client:
         resp = client.get(f"{url}?key={api_key}")
     if resp.status_code >= 400:
-        raise ModelRegistryError(3010, f"Gemini model discovery failed: HTTP {resp.status_code}")
+        raise ModelRegistryError(
+            3010, f"Gemini model discovery failed: HTTP {resp.status_code}"
+        )
     data = resp.json()
     models = data.get("models") or []
     out: list[tuple[str, str, dict]] = []
@@ -178,17 +199,25 @@ def _discover_gemini_models(base_url: str, api_key: str) -> list[tuple[str, str,
             continue
         capabilities = {}
         if model_type == "llm":
-            capabilities = {"supports_reasoning_budget": True, "multimodal": True, "input_types": ["text", "image"]}
+            capabilities = {
+                "supports_reasoning_budget": True,
+                "multimodal": True,
+                "input_types": ["text", "image"],
+            }
         out.append((model_name, model_type, capabilities))
     return out
 
 
-def _discover_openai_compatible_models(base_url: str, api_key: str) -> list[tuple[str, str, dict]]:
+def _discover_openai_compatible_models(
+    base_url: str, api_key: str
+) -> list[tuple[str, str, dict]]:
     models_url = _openai_models_url(base_url)
     with httpx.Client(timeout=20) as client:
         resp = client.get(models_url, headers={"Authorization": f"Bearer {api_key}"})
     if resp.status_code >= 400:
-        raise ModelRegistryError(3011, f"Model discovery failed: HTTP {resp.status_code}")
+        raise ModelRegistryError(
+            3011, f"Model discovery failed: HTTP {resp.status_code}"
+        )
     data = resp.json()
     items = data.get("data") or []
     out: list[tuple[str, str, dict]] = []
@@ -202,7 +231,10 @@ def _discover_openai_compatible_models(base_url: str, api_key: str) -> list[tupl
         if model_type == "llm":
             if "deepseek" in lower_name:
                 capabilities["supports_reasoning_effort"] = True
-            if any(keyword in lower_name for keyword in ("vision", "vl", "omni", "gpt-4o", "gemini")):
+            if any(
+                keyword in lower_name
+                for keyword in ("vision", "vl", "omni", "gpt-4o", "gemini")
+            ):
                 capabilities["multimodal"] = True
                 capabilities["input_types"] = ["text", "image"]
         out.append((model_name, model_type, capabilities))
@@ -281,7 +313,9 @@ def update_provider(
     )
     if not provider:
         raise ModelRegistryError(3001, "Provider not found")
-    next_base_url = _normalize_base_url(base_url) if base_url is not None else provider.base_url
+    next_base_url = (
+        _normalize_base_url(base_url) if base_url is not None else provider.base_url
+    )
     duplicated = (
         db.query(ModelProvider)
         .filter(
@@ -377,7 +411,9 @@ def list_catalog(
 ) -> list[ModelCatalog]:
     provider_ids = [
         row.id
-        for row in db.query(ModelProvider.id).filter(ModelProvider.user_id == user_id).all()
+        for row in db.query(ModelProvider.id)
+        .filter(ModelProvider.user_id == user_id)
+        .all()
     ]
     if not provider_ids:
         return []
@@ -405,7 +441,9 @@ def _ensure_default_profile_uniqueness(
         row.is_default = False
 
 
-def _provider_name_for_model(db: Session, user_id: str, model_id: str | None) -> str | None:
+def _provider_name_for_model(
+    db: Session, user_id: str, model_id: str | None
+) -> str | None:
     if not model_id:
         return None
     model = db.query(ModelCatalog).filter(ModelCatalog.id == model_id).first()
@@ -472,7 +510,9 @@ def update_runtime_profile(
 ) -> LlmRuntimeProfile:
     profile = (
         db.query(LlmRuntimeProfile)
-        .filter(LlmRuntimeProfile.id == profile_id, LlmRuntimeProfile.user_id == user_id)
+        .filter(
+            LlmRuntimeProfile.id == profile_id, LlmRuntimeProfile.user_id == user_id
+        )
         .first()
     )
     if not profile:
@@ -504,7 +544,9 @@ def update_runtime_profile(
         )
     if is_default is not None:
         if is_default:
-            _ensure_default_profile_uniqueness(db, user_id=user_id, profile_id=profile_id)
+            _ensure_default_profile_uniqueness(
+                db, user_id=user_id, profile_id=profile_id
+            )
         profile.is_default = is_default
 
     db.commit()
@@ -524,7 +566,9 @@ def list_runtime_profiles(db: Session, user_id: str) -> list[LlmRuntimeProfile]:
 def delete_runtime_profile(db: Session, user_id: str, profile_id: str) -> None:
     profile = (
         db.query(LlmRuntimeProfile)
-        .filter(LlmRuntimeProfile.id == profile_id, LlmRuntimeProfile.user_id == user_id)
+        .filter(
+            LlmRuntimeProfile.id == profile_id, LlmRuntimeProfile.user_id == user_id
+        )
         .first()
     )
     if not profile:

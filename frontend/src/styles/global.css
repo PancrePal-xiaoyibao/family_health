@@ -394,6 +394,29 @@ button.ghost {
   gap: 8px;
 }
 
+.composer-toolbar {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.composer-popover {
+  border-radius: var(--radius-md);
+  border: 1px solid var(--line);
+  background: var(--panel);
+  padding: 10px;
+  display: grid;
+  gap: 8px;
+}
+
+.kb-checklist {
+  display: grid;
+  gap: 6px;
+  max-height: 220px;
+  overflow: auto;
+  padding-right: 4px;
+}
+
 .row-between {
   display: flex;
   align-items: center;

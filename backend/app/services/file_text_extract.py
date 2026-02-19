@@ -27,7 +27,17 @@ def _strip_xml_tags(text: str) -> str:
 
 def extract_text_from_file(file_name: str, file_bytes: bytes) -> str:
     suffix = Path(file_name).suffix.lower()
-    if suffix in {".txt", ".md", ".markdown", ".json", ".csv", ".log", ".xml", ".yaml", ".yml"}:
+    if suffix in {
+        ".txt",
+        ".md",
+        ".markdown",
+        ".json",
+        ".csv",
+        ".log",
+        ".xml",
+        ".yaml",
+        ".yml",
+    }:
         return decode_text_with_fallback(file_bytes)
 
     if suffix == ".pdf":
@@ -69,7 +79,10 @@ def extract_text_from_file(file_name: str, file_bytes: bytes) -> str:
         rows: list[str] = []
         for sheet in workbook.sheets():
             for row_idx in range(sheet.nrows):
-                cells = [str(sheet.cell_value(row_idx, col_idx)) for col_idx in range(sheet.ncols)]
+                cells = [
+                    str(sheet.cell_value(row_idx, col_idx))
+                    for col_idx in range(sheet.ncols)
+                ]
                 cells = [cell for cell in cells if cell and cell != "None"]
                 if cells:
                     rows.append("\t".join(cells))

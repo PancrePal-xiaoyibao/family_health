@@ -36,7 +36,9 @@ def create_export_job_api(
         include_sanitized_text=payload.include_sanitized_text,
         filters=payload.filters,
     )
-    return ok({"id": job.id, "status": job.status, "archive_path": job.archive_path}, trace_id)
+    return ok(
+        {"id": job.id, "status": job.status, "archive_path": job.archive_path}, trace_id
+    )
 
 
 @router.get("/exports/jobs")

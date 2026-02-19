@@ -34,6 +34,7 @@ _SQLITE_COMPAT_COLUMNS: dict[str, dict[str, str]] = {
         "reasoning_budget": "INTEGER",
         "show_reasoning": "BOOLEAN",
         "context_message_limit": "INTEGER",
+        "chat_kb_id": "VARCHAR(36)",
     },
     "chat_attachments": {
         "content_type": "VARCHAR(120)",
@@ -62,7 +63,9 @@ def _add_missing_columns(
             f"ALTER TABLE {table_name} ADD COLUMN {column_name} {column_type}"
         )
         if table_name == "chat_sessions" and column_name == "show_reasoning":
-            conn.exec_driver_sql("UPDATE chat_sessions SET show_reasoning = 1 WHERE show_reasoning IS NULL")
+            conn.exec_driver_sql(
+                "UPDATE chat_sessions SET show_reasoning = 1 WHERE show_reasoning IS NULL"
+            )
         if table_name == "chat_sessions" and column_name == "context_message_limit":
             conn.exec_driver_sql(
                 "UPDATE chat_sessions SET context_message_limit = 20 WHERE context_message_limit IS NULL"

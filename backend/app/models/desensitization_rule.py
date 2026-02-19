@@ -10,11 +10,15 @@ class DesensitizationRule(Base):
     __tablename__ = "desensitization_rules"
 
     id: Mapped[str] = mapped_column(String(36), primary_key=True)
-    user_id: Mapped[str] = mapped_column(String(36), ForeignKey("users.id"), nullable=False, index=True)
+    user_id: Mapped[str] = mapped_column(
+        String(36), ForeignKey("users.id"), nullable=False, index=True
+    )
     member_scope: Mapped[str] = mapped_column(
         String(36), nullable=False, default="global", index=True
     )
-    rule_type: Mapped[str] = mapped_column(String(20), nullable=False, default="literal")
+    rule_type: Mapped[str] = mapped_column(
+        String(20), nullable=False, default="literal"
+    )
     pattern: Mapped[str] = mapped_column(String(500), nullable=False)
     replacement_token: Mapped[str] = mapped_column(String(100), nullable=False)
     tag: Mapped[str | None] = mapped_column(String(40), nullable=True, index=True)

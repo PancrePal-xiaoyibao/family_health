@@ -69,7 +69,9 @@ def list_kb_api(
     db: Session = Depends(get_db),
 ):
     trace_id = trace_id_from_request(request)
-    return ok({"items": [kb_to_dict(row) for row in list_kb(db, user_id=user.id)]}, trace_id)
+    return ok(
+        {"items": [kb_to_dict(row) for row in list_kb(db, user_id=user.id)]}, trace_id
+    )
 
 
 @router.get("/knowledge-bases/defaults")
@@ -92,7 +94,9 @@ def update_kb_api(
 ):
     trace_id = trace_id_from_request(request)
     try:
-        row = update_kb(db, kb_id=kb_id, user_id=user.id, **payload.model_dump(exclude_unset=True))
+        row = update_kb(
+            db, kb_id=kb_id, user_id=user.id, **payload.model_dump(exclude_unset=True)
+        )
     except KbError as exc:
         return error(exc.code, exc.message, trace_id, status_code=400)
     return ok(kb_to_dict(row), trace_id)

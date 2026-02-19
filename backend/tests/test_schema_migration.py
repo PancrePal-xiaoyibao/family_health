@@ -65,7 +65,9 @@ def test_startup_migration_adds_user_id_to_desensitization_tables(tmp_path):
     run_startup_migrations(engine, db_url)
 
     with engine.begin() as conn:
-        rule_cols = conn.exec_driver_sql("PRAGMA table_info(desensitization_rules)").all()
+        rule_cols = conn.exec_driver_sql(
+            "PRAGMA table_info(desensitization_rules)"
+        ).all()
         pii_cols = conn.exec_driver_sql("PRAGMA table_info(pii_mapping_vault)").all()
         assert "user_id" in {row[1] for row in rule_cols}
         assert "user_id" in {row[1] for row in pii_cols}

@@ -37,7 +37,9 @@ def test_upload_docx_attachment_success(client: TestClient):
     token = _bootstrap_and_login(client)
     headers = {"Authorization": f"Bearer {token}"}
 
-    session_resp = client.post("/api/v1/chat/sessions", json={"title": "docx-test"}, headers=headers)
+    session_resp = client.post(
+        "/api/v1/chat/sessions", json={"title": "docx-test"}, headers=headers
+    )
     assert session_resp.status_code == 200
     session_id = session_resp.json()["data"]["id"]
 
@@ -45,7 +47,13 @@ def test_upload_docx_attachment_success(client: TestClient):
     upload_resp = client.post(
         f"/api/v1/chat/sessions/{session_id}/attachments",
         headers=headers,
-        files={"file": ("report.docx", file_bytes, "application/vnd.openxmlformats-officedocument.wordprocessingml.document")},
+        files={
+            "file": (
+                "report.docx",
+                file_bytes,
+                "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+            )
+        },
     )
     assert upload_resp.status_code == 200
     assert upload_resp.json()["data"]["parse_status"] == "done"
@@ -72,7 +80,9 @@ def test_create_invalid_regex_rule_rejected(client: TestClient):
 def test_upload_attachment_with_invalid_windows_filename(client: TestClient):
     token = _bootstrap_and_login(client)
     headers = {"Authorization": f"Bearer {token}"}
-    session_resp = client.post("/api/v1/chat/sessions", json={"title": "name-safe"}, headers=headers)
+    session_resp = client.post(
+        "/api/v1/chat/sessions", json={"title": "name-safe"}, headers=headers
+    )
     assert session_resp.status_code == 200
     session_id = session_resp.json()["data"]["id"]
 
