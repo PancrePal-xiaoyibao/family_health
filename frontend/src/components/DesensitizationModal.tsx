@@ -11,6 +11,7 @@ const TEXT = {
     loading: "加载中...",
     preview: "文件预览",
     search: "搜索",
+    searchAction: "搜索并定位",
     next: "下一个命中",
     prev: "上一个命中",
     nextDoc: "下一份",
@@ -52,6 +53,7 @@ const TEXT = {
     loading: "Loading...",
     preview: "Preview",
     search: "Search",
+    searchAction: "Search & jump",
     next: "Next hit",
     prev: "Prev hit",
     nextDoc: "Next file",
@@ -397,6 +399,33 @@ export function DesensitizationModal({
     setSearchHits(hits);
     setSearchIndex(0);
   }, [preview?.text, searchQuery]);
+
+  const jumpToSearch = () => {
+    if (!preview?.text) return;
+    if (!searchQuery) return;
+    if (searchHits.length === 0) {
+      setNotice(locale === "zh" ? "未找到匹配内容" : "No matches found");
+      return;
+    }
+    const start = searchHits[0];
+    const end = start + searchQuery.length;
+    scrollToIndex(start, end - start);
+    const container = previewRef.current;
+    if (!container) return;
+    const highlight = window.getSelection();
+    const range = highlight?.rangeCount ? highlight.getRangeAt(0) : null;
+    if (range) {
+      const rect = range.getBoundingClientRect();
+      if (rect && rect.width > 0) {
+        setQuickAction({
+          visible: true,
+          x: rect.right + 6,
+          y: rect.top - 6,
+          mode: "selection",
+        });
+      }
+    }
+  };
 
   const scrollToIndex = (index: number, length: number) => {
     const container = previewRef.current;
@@ -1065,6 +1094,9 @@ export function DesensitizationModal({
                 <input value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} />
               </label>
               <div className="actions">
+                <button type="button" className="ghost" onClick={() => jumpToSearch()}>
+                  {text.searchAction}
+                </button>
                 <button type="button" className="ghost" onClick={() => jumpToHit(-1)}>{text.prev}</button>
                 <button type="button" className="ghost" onClick={() => jumpToHit(1)}>{text.next}</button>
               </div>
