@@ -68,6 +68,8 @@ const TEXT = {
     exportMsgMd: "导出消息 MD",
     exportMsgPdf: "导出消息 PDF",
     shareSelected: "分享已选消息",
+    deleteSelectedMsg: "删除已选消息",
+    selectMsgFirst: "请先选择消息",
     shared: "分享链接已复制",
   },
   en: {
@@ -130,6 +132,8 @@ const TEXT = {
     exportMsgMd: "Export message MD",
     exportMsgPdf: "Export message PDF",
     shareSelected: "Share selected messages",
+    deleteSelectedMsg: "Delete selected messages",
+    selectMsgFirst: "Select messages first",
     shared: "Share link copied",
   },
 } as const;
@@ -566,8 +570,14 @@ export function ChatCenter({ token, locale }: { token: string; locale: Locale })
           if (evt.type === "message") answerQueueRef.current += evt.delta ?? "";
           if (evt.type === "reasoning") reasoningQueueRef.current += evt.delta ?? "";
           if (evt.type === "error") setMessage(evt.message ?? "stream failed");
-          if (evt.type === "done" && evt.assistant_message_id && evt.reasoning_content) {
-            setReasoningByMessageId((prev) => ({ ...prev, [evt.assistant_message_id as string]: evt.reasoning_content as string }));
+          if (evt.type === "done") {
+            if (evt.assistant_message_id && evt.reasoning_content) {
+              setReasoningByMessageId((prev) => ({ ...prev, [evt.assistant_message_id as string]: evt.reasoning_content as string }));
+            }
+            if (evt.assistant_answer && !answerQueueRef.current) {
+              answerQueueRef.current = evt.assistant_answer;
+              setStreamingAnswer(evt.assistant_answer);
+            }
           }
         },
       );
@@ -618,12 +628,30 @@ export function ChatCenter({ token, locale }: { token: string; locale: Locale })
   };
 
   const shareSelectedMessages = async () => {
-    if (!activeSessionId || selectedMessageIds.length === 0) return;
+    if (!activeSessionId || selectedMessageIds.length === 0) {
+      setMessage(text.selectMsgFirst);
+      return;
+    }
     const url = new URL(window.location.href);
     url.searchParams.set("session", activeSessionId);
     url.searchParams.set("msgs", selectedMessageIds.join(","));
     await navigator.clipboard.writeText(url.toString());
     setMessage(`${text.shared} (${selectedMessageIds.length})`);
+  };
+
+  const deleteSelectedMessages = async () => {
+    if (!activeSessionId || selectedMessageIds.length === 0) {
+      setMessage(text.selectMsgFirst);
+      return;
+    }
+    try {
+      await api.bulkDeleteChatMessages(activeSessionId, selectedMessageIds, token);
+      setMessages((prev) => prev.filter((msg) => !selectedMessageIds.includes(msg.id)));
+      setSelectedMessageIds([]);
+      setMessage(text.bulkDeleteDone);
+    } catch (error) {
+      setMessage(error instanceof ApiError ? error.message : text.loadMessagesFailed);
+    }
   };
 
   return (
@@ -719,7 +747,10 @@ export function ChatCenter({ token, locale }: { token: string; locale: Locale })
       <div className="panel message-flow">
         <div className="row-between">
           <h3>{text.messageFlow}</h3>
-          <button type="button" className="ghost" onClick={shareSelectedMessages}>{text.shareSelected}</button>
+          <div className="actions">
+            <button type="button" className="ghost" onClick={shareSelectedMessages}>{text.shareSelected}</button>
+            <button type="button" className="ghost" onClick={deleteSelectedMessages}>{text.deleteSelectedMsg}</button>
+          </div>
         </div>
         <div className="messages">
           {messages.length === 0 && <p className="muted">{text.noMessages}</p>}

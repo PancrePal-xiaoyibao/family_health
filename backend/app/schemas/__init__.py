@@ -11,6 +11,7 @@ from app.schemas.auth import (
     UpdateStatusRequest,
 )
 from app.schemas.chat import (
+    ChatBulkMessageRequest,
     ChatMessageCreateRequest,
     ChatSessionCreateRequest,
     ChatSessionUpdateRequest,
@@ -39,6 +40,7 @@ from app.schemas.mcp import (
 __all__ = [
     "AgentQaRequest",
     "BootstrapOwnerRequest",
+    "ChatBulkMessageRequest",
     "ChatMessageCreateRequest",
     "ChatSessionCreateRequest",
     "ChatSessionUpdateRequest",

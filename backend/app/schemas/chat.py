@@ -30,6 +30,10 @@ class ChatBulkSessionRequest(BaseModel):
     session_ids: list[str] = Field(default_factory=list)
 
 
+class ChatBulkMessageRequest(BaseModel):
+    message_ids: list[str] = Field(default_factory=list)
+
+
 class ChatMessageCreateRequest(BaseModel):
     role: str = Field(default="user")
     content: str = Field(min_length=1)

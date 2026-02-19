@@ -7,8 +7,9 @@ from app.core.response import error, ok, trace_id_from_request
 from app.models.desensitization_rule import DesensitizationRule
 from app.models.user import User
 from app.schemas.chat import (
-    ChatMessageCreateRequest,
+    ChatBulkMessageRequest,
     ChatBulkSessionRequest,
+    ChatMessageCreateRequest,
     ChatSessionCreateRequest,
     ChatSessionUpdateRequest,
     DesensitizationRuleCreateRequest,
@@ -18,10 +19,12 @@ from app.services.chat_service import (
     ChatError,
     add_attachment,
     add_message,
+    bulk_delete_messages,
     bulk_delete_sessions,
     bulk_export_sessions_zip,
     copy_session,
     create_session,
+    delete_message,
     delete_session,
     export_session_markdown,
     export_session_payload,
@@ -272,6 +275,43 @@ def list_message_api(
         },
         trace_id,
     )
+
+
+@router.delete("/chat/sessions/{session_id}/messages/{message_id}")
+def delete_message_api(
+    session_id: str,
+    message_id: str,
+    request: Request,
+    user: User = Depends(current_user),
+    db: Session = Depends(get_db),
+):
+    trace_id = trace_id_from_request(request)
+    try:
+        delete_message(db, session_id=session_id, user_id=user.id, message_id=message_id)
+    except ChatError as exc:
+        return error(exc.code, exc.message, trace_id, status_code=404)
+    return ok({"deleted": True}, trace_id)
+
+
+@router.post("/chat/sessions/{session_id}/messages/bulk-delete")
+def bulk_delete_message_api(
+    session_id: str,
+    payload: ChatBulkMessageRequest,
+    request: Request,
+    user: User = Depends(current_user),
+    db: Session = Depends(get_db),
+):
+    trace_id = trace_id_from_request(request)
+    try:
+        deleted = bulk_delete_messages(
+            db,
+            session_id=session_id,
+            user_id=user.id,
+            message_ids=payload.message_ids,
+        )
+    except ChatError as exc:
+        return error(exc.code, exc.message, trace_id, status_code=400)
+    return ok({"deleted": deleted}, trace_id)
 
 
 @router.post("/chat/sessions/{session_id}/attachments")

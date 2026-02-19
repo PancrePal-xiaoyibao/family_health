@@ -221,6 +221,34 @@ def list_messages(db: Session, session_id: str, user_id: str) -> list[ChatMessag
     )
 
 
+def delete_message(db: Session, session_id: str, user_id: str, message_id: str) -> None:
+    _session_for_user(db, session_id, user_id)
+    row = (
+        db.query(ChatMessage)
+        .filter(ChatMessage.id == message_id, ChatMessage.session_id == session_id)
+        .first()
+    )
+    if not row:
+        raise ChatError(4007, "Message not found")
+    db.delete(row)
+    db.commit()
+
+
+def bulk_delete_messages(db: Session, session_id: str, user_id: str, message_ids: list[str]) -> int:
+    _session_for_user(db, session_id, user_id)
+    if not message_ids:
+        raise ChatError(4006, "No message ids provided")
+    rows = (
+        db.query(ChatMessage)
+        .filter(ChatMessage.session_id == session_id, ChatMessage.id.in_(message_ids))
+        .all()
+    )
+    for row in rows:
+        db.delete(row)
+    db.commit()
+    return len(rows)
+
+
 def _write_file(path: Path, data: bytes) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_bytes(data)

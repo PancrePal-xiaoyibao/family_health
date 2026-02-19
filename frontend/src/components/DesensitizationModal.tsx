@@ -104,6 +104,8 @@ type Props = {
   docTotal?: number;
   onPrevDoc?: () => void;
   onNextDoc?: () => void;
+  confirmDisabled?: boolean;
+  confirmDisabledReason?: string;
   confirmLabel?: string;
   onConfirm: () => Promise<void> | void;
   onCancel: () => void;
@@ -122,6 +124,8 @@ export function DesensitizationModal({
   docTotal,
   onPrevDoc,
   onNextDoc,
+  confirmDisabled,
+  confirmDisabledReason,
   confirmLabel,
   onConfirm,
   onCancel,
@@ -1163,6 +1167,7 @@ export function DesensitizationModal({
 
         {loading && <div className="inline-message">{text.loading}</div>}
         {notice && <div className="inline-message">{notice}</div>}
+        {confirmDisabled && confirmDisabledReason && <div className="inline-message">{confirmDisabledReason}</div>}
         {quickAction.visible && (
           <div className="quick-action" style={{ top: quickAction.y, left: quickAction.x }}>
             {quickAction.mode === "selection" ? (
@@ -1211,7 +1216,9 @@ export function DesensitizationModal({
 
         <div className="actions">
           <button type="button" className="ghost" onClick={onCancel}>{text.close}</button>
-          <button type="button" onClick={() => void onConfirm()}>{confirmLabel ?? text.confirm}</button>
+          <button type="button" onClick={() => void onConfirm()} disabled={confirmDisabled}>
+            {confirmLabel ?? text.confirm}
+          </button>
         </div>
       </div>
     </div>

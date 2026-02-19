@@ -21,6 +21,8 @@
 ## 2) 消息管理
 - `POST /api/v1/chat/sessions/{id}/messages`
 - `GET /api/v1/chat/sessions/{id}/messages`
+- `DELETE /api/v1/chat/sessions/{id}/messages/{message_id}`
+- `POST /api/v1/chat/sessions/{id}/messages/bulk-delete`
 
 消息字段补充：
 - `reasoning_content`（assistant 思维链，按会话策略可为空）

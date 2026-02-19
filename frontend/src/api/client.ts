@@ -73,7 +73,7 @@ async function request<T>(
       maybeEnvelope.message ?? maybeEnvelope.detail ?? `HTTP ${response.status}`;
     if (
       response.status === 401 &&
-      /missing bearer token|invalid token|invalid token type|user not found/i.test(message)
+      /missing bearer token|invalid token|invalid token type|user not found|not authenticated|invalid authentication credentials|unauthorized/i.test(message)
     ) {
       message =
         uiLocale === "zh"
@@ -243,6 +243,10 @@ export const api = {
     request(`/agent/roles/${roleId}`, {}, token),
   listMessages: (sessionId: string, token: string): Promise<{ items: ChatMessage[] }> =>
     request(`/chat/sessions/${sessionId}/messages`, {}, token),
+  deleteChatMessage: (sessionId: string, messageId: string, token: string): Promise<{ deleted: boolean }> =>
+    request(`/chat/sessions/${sessionId}/messages/${messageId}`, { method: "DELETE" }, token),
+  bulkDeleteChatMessages: (sessionId: string, message_ids: string[], token: string): Promise<{ deleted: number }> =>
+    request(`/chat/sessions/${sessionId}/messages/bulk-delete`, { method: "POST", body: JSON.stringify({ message_ids }) }, token),
   uploadAttachment: async (
     sessionId: string,
     file: File,
@@ -349,6 +353,14 @@ export const api = {
       headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
       body: JSON.stringify(payload),
     });
+    if (response.status === 401) {
+      notifyAuthExpired();
+      throw new ApiError(
+        uiLocale === "zh" ? "登录状态已失效，请重新登录后重试" : "Authentication expired. Please sign in again.",
+        401,
+        "auth-expired",
+      );
+    }
     if (!response.ok || !response.body) {
       throw new Error(`Stream failed: ${response.status}`);
     }
