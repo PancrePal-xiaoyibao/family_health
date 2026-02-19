@@ -15,9 +15,10 @@ type Theme = "light" | "dark";
 const SESSION_KEY = "fh_session";
 const LOCALE_KEY = "fh_locale";
 const THEME_KEY = "fh_theme";
+const SESSION_TTL_MS = 14 * 24 * 60 * 60 * 1000;
 
-function loadSession(): UserSession | null {
-  const raw = localStorage.getItem(SESSION_KEY);
+function readSession(storage: Storage): UserSession | null {
+  const raw = storage.getItem(SESSION_KEY);
   if (!raw) {
     return null;
   }
@@ -26,18 +27,36 @@ function loadSession(): UserSession | null {
     if (!parsed?.token || !parsed?.role || !parsed?.userId) {
       return null;
     }
+    if (parsed.expires_at && Date.now() > parsed.expires_at) {
+      storage.removeItem(SESSION_KEY);
+      return null;
+    }
     return parsed;
   } catch {
     return null;
   }
 }
 
-function saveSession(session: UserSession | null): void {
+function loadSession(): UserSession | null {
+  return readSession(localStorage) ?? readSession(sessionStorage);
+}
+
+function saveSession(session: UserSession | null, remember: boolean): void {
   if (!session) {
     localStorage.removeItem(SESSION_KEY);
+    sessionStorage.removeItem(SESSION_KEY);
     return;
   }
-  localStorage.setItem(SESSION_KEY, JSON.stringify(session));
+  if (remember) {
+    const payload: UserSession = { ...session, expires_at: Date.now() + SESSION_TTL_MS };
+    localStorage.setItem(SESSION_KEY, JSON.stringify(payload));
+    sessionStorage.removeItem(SESSION_KEY);
+  } else {
+    const payload: UserSession = { ...session };
+    delete payload.expires_at;
+    sessionStorage.setItem(SESSION_KEY, JSON.stringify(payload));
+    localStorage.removeItem(SESSION_KEY);
+  }
 }
 
 function loadLocale(): Locale {
@@ -132,7 +151,7 @@ export function App() {
   useEffect(() => {
     const onAuthExpired = () => {
       setSession(null);
-      saveSession(null);
+      saveSession(null, true);
       setAuthMessage(text.authExpired);
     };
     window.addEventListener(AUTH_EXPIRED_EVENT, onAuthExpired);
@@ -163,15 +182,15 @@ export function App() {
     }
   }, [activeNav, navItems, session]);
 
-  const handleLogin = (next: UserSession) => {
+  const handleLogin = (next: UserSession, remember: boolean) => {
     setSession(next);
-    saveSession(next);
+    saveSession(next, remember);
     setAuthMessage("");
   };
 
   const logout = () => {
     setSession(null);
-    saveSession(null);
+    saveSession(null, true);
   };
 
   if (!session) {

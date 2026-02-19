@@ -29,3 +29,11 @@
 - 代码变更（文件/函数）: `backend/app/services/agent_service.py` `_prepare_context`
 - 验证结果: `uv run ruff check .` 失败（ruff 未安装）
 - 影响评估: QA 流式调用恢复，KB 参数默认值生效。
+
+### [2026-02-19 13:10] KB 命中文本未进入上下文
+- 问题描述: 挂载知识库后 QA 仍无命中内容，回答缺少 KB 语境。
+- 根因定位: `_build_context_suffix` 读取了 `chunk_text` 字段，但 `retrieve_from_kb` 返回的是 `text`。
+- 解决方案: 兼容读取 `text`，并保留 `chunk_text` 兜底。
+- 代码变更（文件/函数）: `backend/app/services/agent_service.py` `_build_context_suffix`
+- 验证结果: 未执行（待确认运行上下文）
+- 影响评估: 仅影响上下文拼接，不改变检索排序逻辑。

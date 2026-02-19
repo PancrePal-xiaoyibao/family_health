@@ -93,7 +93,7 @@ def _build_context_suffix(
     if kb_hits:
         kb_lines: list[str] = []
         for idx, hit in enumerate(kb_hits, start=1):
-            text = str(hit.get("chunk_text", "")).strip()
+            text = str(hit.get("text") or hit.get("chunk_text") or "").strip()
             if len(text) > 800:
                 text = text[:800] + "\n...[truncated]"
             kb_lines.append(

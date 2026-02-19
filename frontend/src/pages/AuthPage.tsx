@@ -39,6 +39,7 @@ const TEXT = {
     goRegister: "去注册",
     goLogin: "去登录",
     initOwner: "初始化 Owner",
+    rememberMe: "记住我（14天内免登录）",
   },
   en: {
     loginFailed: "Sign-in failed. Please check service status.",
@@ -72,6 +73,7 @@ const TEXT = {
     goRegister: "Sign up",
     goLogin: "Sign in",
     initOwner: "Init Owner",
+    rememberMe: "Remember me (stay signed in for 14 days)",
   },
 } as const;
 
@@ -81,7 +83,7 @@ export function AuthPage({
   locale,
   onLocaleChange,
 }: {
-  onLogin: (session: UserSession) => void;
+  onLogin: (session: UserSession, remember: boolean) => void;
   initialMessage?: string;
   locale: Locale;
   onLocaleChange: (locale: Locale) => void;
@@ -90,6 +92,7 @@ export function AuthPage({
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
   const [displayName, setDisplayName] = useState("");
+  const [rememberMe, setRememberMe] = useState(true);
   const [loading, setLoading] = useState(false);
   const [message, setMessage] = useState<string>("");
   const text = TEXT[locale];
@@ -107,7 +110,7 @@ export function AuthPage({
     setMessage("");
     try {
       const data = await api.login({ username, password });
-      onLogin({ token: data.access_token, role: data.role, userId: data.user_id });
+      onLogin({ token: data.access_token, role: data.role, userId: data.user_id }, rememberMe);
     } catch (error) {
       if (error instanceof ApiError) {
         setMessage(`${error.message} (code=${error.code})`);
@@ -219,6 +222,12 @@ export function AuthPage({
               <label>
                 {text.displayName}
                 <input value={displayName} onChange={(e) => setDisplayName(e.target.value)} required />
+              </label>
+            )}
+            {mode === "login" && (
+              <label className="inline-check">
+                <input type="checkbox" checked={rememberMe} onChange={(e) => setRememberMe(e.target.checked)} />
+                {text.rememberMe}
               </label>
             )}
 

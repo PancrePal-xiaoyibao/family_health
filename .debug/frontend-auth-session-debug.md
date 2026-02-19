@@ -65,6 +65,25 @@
 - 文档更新（新增/修改的 docs 文件与更新点）
   - 修改 `docs/USER_GUIDE.md`
 
+### [2026-02-19 13:20] 记住我（14 天免登录）
+- 问题描述
+  - 登录状态易过期，用户聊天中途被登出。
+- 根因定位
+  - 前端仅使用 localStorage 存储 token，没有过期策略与“记住我”区分。
+- 解决方案
+  - 登录页新增“记住我（14天内免登录）”选项。
+  - 勾选时将会话写入 localStorage 并设置 14 天有效期；未勾选时写入 sessionStorage。
+  - 读取会话时校验过期并自动清理。
+- 代码变更（文件/函数）
+  - `frontend/src/pages/AuthPage.tsx`
+  - `frontend/src/App.tsx`
+  - `frontend/src/api/types.ts`
+  - `docs/USER_GUIDE.md`
+- 验证结果
+  - `npm run build` 通过
+- 影响评估
+  - 仅改进登录持久化逻辑，不影响后端鉴权策略。
+
 ## 待追踪问题
 - 可进一步实现 refresh token 自动续期，减少重新登录频率。
 

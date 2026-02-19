@@ -17,6 +17,7 @@ export type UserSession = {
   token: string;
   role: "owner" | "admin" | "member" | "viewer";
   userId: string;
+  expires_at?: number;
 };
 
 export type Provider = {
