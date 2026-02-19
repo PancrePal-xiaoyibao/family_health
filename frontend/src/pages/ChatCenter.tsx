@@ -1,4 +1,5 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { createPortal } from "react-dom";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import { api, ApiError } from "../api/client";
 import type { AgentRole, ChatMessage, ChatSession, KnowledgeBase, McpServer, ModelCatalog, RuntimeProfile } from "../api/types";
@@ -7,11 +8,13 @@ import { DesensitizationModal } from "../components/DesensitizationModal";
 type Locale = "zh" | "en";
 type StreamEvent = { type: string; delta?: string; assistant_answer?: string; reasoning_content?: string; message?: string; assistant_message_id?: string };
 type StreamDone = { id?: string; answer?: string; reasoning?: string };
+const OPEN_CHAT_CREATE_EVENT = "fh:open-chat-create";
 
 const TEXT = {
   zh: {
     sessionReady: "会话已就绪",
     sessions: "会话",
+    sessionConfig: "会话参数",
     newSession: "新建",
     role: "医学角色",
     noRole: "不使用预置角色",
@@ -76,6 +79,7 @@ const TEXT = {
   en: {
     sessionReady: "Session ready",
     sessions: "Sessions",
+    sessionConfig: "Session config",
     newSession: "New",
     role: "Medical Role",
     noRole: "No preset role",
@@ -169,6 +173,7 @@ function renderMarkdown(input: string): string {
 
 export function ChatCenter({ token, locale }: { token: string; locale: Locale }) {
   const text = TEXT[locale];
+  const [topbarPillEl, setTopbarPillEl] = useState<HTMLElement | null>(null);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const [sessions, setSessions] = useState<ChatSession[]>([]);
   const [roles, setRoles] = useState<AgentRole[]>([]);
@@ -215,6 +220,21 @@ export function ChatCenter({ token, locale }: { token: string; locale: Locale })
   const [pendingIndex, setPendingIndex] = useState(0);
   const [kbMode, setKbMode] = useState<"context" | "chat_default" | "kb">("context");
   const [kbTargetId, setKbTargetId] = useState<string>("");
+  const [showSessionConfig] = useState(true);
+  const [leftPaneWidth, setLeftPaneWidth] = useState<number>(() => {
+    const raw = localStorage.getItem("fh_chat_left_width");
+    const parsed = raw ? Number(raw) : NaN;
+    return Number.isFinite(parsed) ? parsed : 360;
+  });
+  const [leftPaneCollapsed, setLeftPaneCollapsed] = useState(false);
+  useEffect(() => {
+    if (!leftPaneCollapsed) return;
+    const holder = document.getElementById("chat-pill-slot");
+    if (holder) {
+      setTopbarPillEl(holder);
+    }
+  }, [leftPaneCollapsed]);
+  const resizeRef = useRef<{ startX: number; startWidth: number } | null>(null);
 
   const answerQueueRef = useRef("");
   const reasoningQueueRef = useRef("");
@@ -222,6 +242,10 @@ export function ChatCenter({ token, locale }: { token: string; locale: Locale })
   const drainTimerRef = useRef<number | null>(null);
 
   const activeSession = useMemo(() => sessions.find((item) => item.id === activeSessionId) ?? null, [activeSessionId, sessions]);
+  const activeRoleName = useMemo(() => {
+    if (!activeSession?.role_id) return "";
+    return roles.find((item) => item.id === activeSession.role_id)?.name ?? "";
+  }, [activeSession?.role_id, roles]);
   const activeProfile = useMemo(() => {
     const profileId = activeSession?.runtime_profile_id;
     if (profileId) {
@@ -349,7 +373,7 @@ export function ChatCenter({ token, locale }: { token: string; locale: Locale })
     setContextLimit(String(activeSession.context_message_limit || 20));
   }, [activeSession]);
 
-  const openCreateSessionDialog = () => {
+  const openCreateSessionDialog = useCallback(() => {
     setCreateTitle(`Chat ${new Date().toLocaleTimeString()}`);
     setCreateRoleId(sessionRoleId);
     setCreatePrompt(sessionPrompt);
@@ -359,7 +383,21 @@ export function ChatCenter({ token, locale }: { token: string; locale: Locale })
     setCreateContextLimit(contextLimit);
     setCreateSelectedMcpIds(selectedMcpIds);
     setCreateDialogOpen(true);
-  };
+  }, [
+    contextLimit,
+    reasoningBudget,
+    reasoningEnabled,
+    selectedMcpIds,
+    sessionPrompt,
+    sessionRoleId,
+    showReasoning,
+  ]);
+
+  useEffect(() => {
+    const handler = () => openCreateSessionDialog();
+    window.addEventListener(OPEN_CHAT_CREATE_EVENT, handler);
+    return () => window.removeEventListener(OPEN_CHAT_CREATE_EVENT, handler);
+  }, [openCreateSessionDialog]);
 
   const confirmCreateSession = async () => {
     try {
@@ -384,6 +422,33 @@ export function ChatCenter({ token, locale }: { token: string; locale: Locale })
     } catch (error) {
       setMessage(error instanceof ApiError ? error.message : text.loadSessionsFailed);
     }
+  };
+
+  const onResizeStart = (event: React.MouseEvent<HTMLDivElement>) => {
+    resizeRef.current = { startX: event.clientX, startWidth: leftPaneWidth };
+    window.addEventListener("mousemove", onResizing);
+    window.addEventListener("mouseup", onResizeEnd);
+  };
+
+  const onResizing = (event: MouseEvent) => {
+    if (!resizeRef.current) return;
+    const delta = event.clientX - resizeRef.current.startX;
+    const next = Math.min(Math.max(resizeRef.current.startWidth + delta, 260), 520);
+    setLeftPaneWidth(next);
+    localStorage.setItem("fh_chat_left_width", String(next));
+  };
+
+  const onResizeEnd = () => {
+    resizeRef.current = null;
+    window.removeEventListener("mousemove", onResizing);
+    window.removeEventListener("mouseup", onResizeEnd);
+  };
+  const getSessionIcon = (roleName?: string) => {
+    const lower = (roleName || "").toLowerCase();
+    if (lower.includes("nurse") || lower.includes("护士")) return "🩹";
+    if (lower.includes("doctor") || lower.includes("physician") || lower.includes("医学") || lower.includes("医生")) return "🩺";
+    if (lower.includes("assistant") || lower.includes("助理")) return "🧠";
+    return "🩺";
   };
 
   const copySession = async (sessionId: string) => {
@@ -685,95 +750,167 @@ export function ChatCenter({ token, locale }: { token: string; locale: Locale })
     }
   };
 
-  return (
-    <section className="chat-grid chat-grid-two">
-      <div className="panel">
-        <div className="row-between">
-          <h3>{text.sessions}</h3>
-          <button type="button" onClick={openCreateSessionDialog}>{text.newSession}</button>
-        </div>
-        {!activeSession && <div className="inline-message">{locale === "zh" ? "请先选择一个会话" : "Select a session first"}</div>}
-        <label>{locale === "zh" ? "会话标题" : "Session title"}
-          <input value={sessionTitle} onChange={(e) => setSessionTitle(e.target.value)} disabled={!activeSessionId} />
-        </label>
-        <label>{text.role}
-          <select value={sessionRoleId} onChange={(e) => setSessionRoleId(e.target.value)} disabled={!activeSessionId}>
-            <option value="">{text.noRole}</option>
-            {roles.map((item) => <option key={item.id} value={item.id}>{item.name}</option>)}
-          </select>
-        </label>
-        <label>{text.customPrompt}
-          <textarea value={sessionPrompt} onChange={(e) => setSessionPrompt(e.target.value)} placeholder={text.customPromptPlaceholder} disabled={!activeSessionId} />
-        </label>
-        <label>{text.contextLimit}<input value={contextLimit} onChange={(e) => setContextLimit(e.target.value)} disabled={!activeSessionId} /></label>
-        <label>{text.reasoningSwitch}
-          <select value={reasoningEnabled === null ? "auto" : reasoningEnabled ? "on" : "off"} onChange={(e) => setReasoningEnabled(e.target.value === "auto" ? null : e.target.value === "on")} disabled={!activeSessionId}>
-            <option value="auto">{text.auto}</option>
-            <option value="on">{text.on}</option>
-            <option value="off">{text.off}</option>
-          </select>
-        </label>
-        <label>{text.reasoningBudget}<input value={reasoningBudget} onChange={(e) => setReasoningBudget(e.target.value)} disabled={!activeSessionId} /></label>
-        <label className="inline-check"><input type="checkbox" checked={showReasoning} onChange={(e) => setShowReasoning(e.target.checked)} disabled={!activeSessionId} />{text.showReasoning}</label>
-        <button type="button" onClick={persistSessionConfig} disabled={!activeSessionId}>{text.saveConfig}</button>
+  const deleteMessage = async (messageId: string) => {
+    if (!activeSessionId) return;
+    try {
+      await api.deleteChatMessage(activeSessionId, messageId, token);
+      setMessages((prev) => prev.filter((msg) => msg.id !== messageId));
+      setSelectedMessageIds((prev) => prev.filter((id) => id !== messageId));
+      setMessage(text.bulkDeleteDone);
+    } catch (error) {
+      setMessage(error instanceof ApiError ? error.message : text.loadMessagesFailed);
+    }
+  };
 
-        <div className="row-between">
-          <label className="inline-check">
-            <input
-              type="checkbox"
-              checked={selectedAllSessions}
-              onChange={(e) => setSelectedSessionIds(e.target.checked ? sessions.map((x) => x.id) : [])}
-            />
-            {text.selectAll}
-          </label>
-          <div className="actions">
-            <button type="button" onClick={bulkExportSessions}>{text.bulkExport}</button>
-            <button type="button" className="ghost" onClick={bulkDeleteSessions}>{text.bulkDelete}</button>
+  return (
+    <section className="chat-grid chat-grid-two" style={{ gridTemplateColumns: `${leftPaneCollapsed ? 56 : leftPaneWidth}px 1fr` }}>
+      <div className={leftPaneCollapsed ? "panel resizable-panel collapsed" : "panel resizable-panel"}>
+        <div className="row-between session-header">
+          <div className="session-title">
+            <h3>{text.sessions}</h3>
+            <button
+              type="button"
+              className="icon-btn session-config-toggle"
+              onClick={() => setLeftPaneCollapsed((prev) => !prev)}
+              title={leftPaneCollapsed ? (locale === "zh" ? "展开会话面板" : "Expand session panel") : (locale === "zh" ? "收起会话面板" : "Collapse session panel")}
+              aria-label={leftPaneCollapsed ? (locale === "zh" ? "展开会话面板" : "Expand session panel") : (locale === "zh" ? "收起会话面板" : "Collapse session panel")}
+            >
+              <Icon d={leftPaneCollapsed ? "M9 6l6 6-6 6" : "M15 6l-6 6 6 6"} />
+            </button>
           </div>
         </div>
+        {!leftPaneCollapsed && <div className="resize-handle" onMouseDown={onResizeStart} />}
+        {!leftPaneCollapsed && !activeSession && <div className="inline-message">{locale === "zh" ? "请先选择一个会话" : "Select a session first"}</div>}
+        {!leftPaneCollapsed && showSessionConfig && (
+          <>
+            <label>{locale === "zh" ? "会话标题" : "Session title"}
+              <input value={sessionTitle} onChange={(e) => setSessionTitle(e.target.value)} disabled={!activeSessionId} />
+            </label>
+            <label>{text.role}
+              <select value={sessionRoleId} onChange={(e) => setSessionRoleId(e.target.value)} disabled={!activeSessionId}>
+                <option value="">{text.noRole}</option>
+                {roles.map((item) => <option key={item.id} value={item.id}>{item.name}</option>)}
+              </select>
+            </label>
+            <label>{text.customPrompt}
+              <textarea value={sessionPrompt} onChange={(e) => setSessionPrompt(e.target.value)} placeholder={text.customPromptPlaceholder} disabled={!activeSessionId} />
+            </label>
+            <label>{text.contextLimit}<input value={contextLimit} onChange={(e) => setContextLimit(e.target.value)} disabled={!activeSessionId} /></label>
+            <label>{text.reasoningSwitch}
+              <select value={reasoningEnabled === null ? "auto" : reasoningEnabled ? "on" : "off"} onChange={(e) => setReasoningEnabled(e.target.value === "auto" ? null : e.target.value === "on")} disabled={!activeSessionId}>
+                <option value="auto">{text.auto}</option>
+                <option value="on">{text.on}</option>
+                <option value="off">{text.off}</option>
+              </select>
+            </label>
+            <label>{text.reasoningBudget}<input value={reasoningBudget} onChange={(e) => setReasoningBudget(e.target.value)} disabled={!activeSessionId} /></label>
+            <label className="inline-check"><input type="checkbox" checked={showReasoning} onChange={(e) => setShowReasoning(e.target.checked)} disabled={!activeSessionId} />{text.showReasoning}</label>
+            <button type="button" onClick={persistSessionConfig} disabled={!activeSessionId}>{text.saveConfig}</button>
+          </>
+        )}
 
-        <div className="list session-list">
-          {sessions.map((item) => (
-            <article key={item.id} className="list-item session-row">
-              <label className="session-check">
-                <input
-                  type="checkbox"
-                  checked={selectedSessionIds.includes(item.id)}
-                  onChange={(e) =>
-                    setSelectedSessionIds((prev) =>
-                      e.target.checked ? [...prev, item.id] : prev.filter((x) => x !== item.id),
-                    )
-                  }
-                />
-              </label>
-              <button type="button" className={item.id === activeSessionId ? "session-item active" : "session-item"} onClick={() => setActiveSessionId(item.id)}>
-                <strong>{item.title}</strong><small>{new Date(item.updated_at).toLocaleString()}</small>
-              </button>
-              <div className="icon-actions">
-                <button type="button" className="icon-btn" title={text.copyLabel} onClick={() => void copySession(item.id)}><Icon d="M9 9h10v10H9zM5 5h10v10" /></button>
-                <button type="button" className="icon-btn" title={text.branchLabel} onClick={() => void branchSession(item.id)}><Icon d="M7 3v7a4 4 0 0 0 4 4h6M13 21l4-4-4-4" /></button>
-                <div className="icon-menu">
-                  <button type="button" className="icon-btn" title={text.exportSession} onClick={() => setExportMenuSessionId((prev) => prev === item.id ? null : item.id)}><Icon d="M12 3v12M7 10l5 5 5-5M5 21h14" /></button>
-                  {exportMenuSessionId === item.id && (
-                    <div className="menu-popover">
-                      <label className="inline-check">
-                        <input type="checkbox" checked={exportIncludeReasoning} onChange={(e) => setExportIncludeReasoning(e.target.checked)} />
-                        {text.includeReasoning}
-                      </label>
-                      <div className="actions">
-                        <button type="button" className="ghost" onClick={() => void exportSession(item.id, "md", exportIncludeReasoning)}>{text.exportMd}</button>
-                        <button type="button" className="ghost" onClick={() => void exportSession(item.id, "pdf", exportIncludeReasoning)}>{text.exportPdf}</button>
+        {!leftPaneCollapsed && (
+          <div className="row-between">
+            <label className="inline-check">
+              <input
+                type="checkbox"
+                checked={selectedAllSessions}
+                onChange={(e) => setSelectedSessionIds(e.target.checked ? sessions.map((x) => x.id) : [])}
+              />
+              {text.selectAll}
+            </label>
+            <div className="actions">
+              <button type="button" onClick={bulkExportSessions}>{text.bulkExport}</button>
+              <button type="button" className="ghost" onClick={bulkDeleteSessions}>{text.bulkDelete}</button>
+            </div>
+          </div>
+        )}
+
+        {!leftPaneCollapsed ? (
+          <div className="list session-list">
+            {sessions.map((item) => (
+              <article key={item.id} className="list-item session-row">
+                <label className="session-check">
+                  <input
+                    type="checkbox"
+                    checked={selectedSessionIds.includes(item.id)}
+                    onChange={(e) =>
+                      setSelectedSessionIds((prev) =>
+                        e.target.checked ? [...prev, item.id] : prev.filter((x) => x !== item.id),
+                      )
+                    }
+                  />
+                </label>
+                <button type="button" className={item.id === activeSessionId ? "session-item active" : "session-item"} onClick={() => setActiveSessionId(item.id)}>
+                  <strong>{item.title}</strong><small>{new Date(item.updated_at).toLocaleString()}</small>
+                </button>
+                <div className="icon-actions">
+                  <button type="button" className="icon-btn" title={text.copyLabel} onClick={() => void copySession(item.id)}><Icon d="M9 9h10v10H9zM5 5h10v10" /></button>
+                  <button type="button" className="icon-btn" title={text.branchLabel} onClick={() => void branchSession(item.id)}><Icon d="M7 3v7a4 4 0 0 0 4 4h6M13 21l4-4-4-4" /></button>
+                  <div className="icon-menu">
+                    <button type="button" className="icon-btn" title={text.exportSession} onClick={() => setExportMenuSessionId((prev) => prev === item.id ? null : item.id)}><Icon d="M12 3v12M7 10l5 5 5-5M5 21h14" /></button>
+                    {exportMenuSessionId === item.id && (
+                      <div className="menu-popover">
+                        <label className="inline-check">
+                          <input type="checkbox" checked={exportIncludeReasoning} onChange={(e) => setExportIncludeReasoning(e.target.checked)} />
+                          {text.includeReasoning}
+                        </label>
+                        <div className="actions">
+                          <button type="button" className="ghost" onClick={() => void exportSession(item.id, "md", exportIncludeReasoning)}>{text.exportMd}</button>
+                          <button type="button" className="ghost" onClick={() => void exportSession(item.id, "pdf", exportIncludeReasoning)}>{text.exportPdf}</button>
+                        </div>
                       </div>
-                    </div>
-                  )}
+                    )}
+                  </div>
+                  <button type="button" className="icon-btn" title={text.share} onClick={() => void shareSession(item.id)}><Icon d="M18 8a3 3 0 1 0-3-3 3 3 0 0 0 3 3zM6 14a3 3 0 1 0 3 3 3 3 0 0 0-3-3zm12 2a3 3 0 1 0 3 3 3 3 0 0 0-3-3zM8.7 14.9l6.6-3.8M8.7 19.1l6.6 3.8" /></button>
+                  <button type="button" className="icon-btn danger" title={text.deleteLabel} onClick={() => void deleteSession(item.id)}><Icon d="M3 6h18M8 6V4h8v2M7 6l1 14h8l1-14M10 10v7M14 10v7" /></button>
                 </div>
-                <button type="button" className="icon-btn" title={text.share} onClick={() => void shareSession(item.id)}><Icon d="M18 8a3 3 0 1 0-3-3 3 3 0 0 0 3 3zM6 14a3 3 0 1 0 3 3 3 3 0 0 0-3-3zm12 2a3 3 0 1 0 3 3 3 3 0 0 0-3-3zM8.7 14.9l6.6-3.8M8.7 19.1l6.6 3.8" /></button>
-                <button type="button" className="icon-btn danger" title={text.deleteLabel} onClick={() => void deleteSession(item.id)}><Icon d="M3 6h18M8 6V4h8v2M7 6l1 14h8l1-14M10 10v7M14 10v7" /></button>
-              </div>
-            </article>
-          ))}
-        </div>
+              </article>
+            ))}
+          </div>
+        ) : (
+          <div className="session-rail">
+            {sessions.map((item) => (
+              <button
+                key={item.id}
+                type="button"
+                className={item.id === activeSessionId ? "session-rail-item active" : "session-rail-item"}
+                onClick={() => setActiveSessionId(item.id)}
+                title={item.title}
+              >
+                <span>{getSessionIcon(roles.find((r) => r.id === item.role_id)?.name)}</span>
+              </button>
+            ))}
+            <button
+              type="button"
+              className="session-rail-item session-rail-add"
+              onClick={openCreateSessionDialog}
+              title={locale === "zh" ? "新建会话" : "New chat"}
+              aria-label={locale === "zh" ? "新建会话" : "New chat"}
+            >
+              <span>＋</span>
+            </button>
+          </div>
+        )}
       </div>
+      {leftPaneCollapsed && activeSession && topbarPillEl
+        ? createPortal(
+          <div className="pinned-session-pill">
+            <span>{activeSession.title || (locale === "zh" ? "未命名" : "Untitled")}</span>
+            <span className="dot" />
+            <span>{activeRoleName || (locale === "zh" ? "未设置角色" : "No role")}</span>
+            <button
+              type="button"
+              className="icon-btn"
+              onClick={() => setLeftPaneCollapsed(false)}
+              title={locale === "zh" ? "展开会话面板" : "Expand session panel"}
+            >
+              <Icon d="M8 5h8M8 12h8M8 19h8" />
+            </button>
+          </div>,
+          topbarPillEl,
+        )
+        : null}
 
       <div className="panel message-flow">
         <div className="row-between">
@@ -794,6 +931,7 @@ export function ChatCenter({ token, locale }: { token: string; locale: Locale })
                   <button type="button" className="icon-btn" title={text.copyMsg} onClick={() => void copyMessage(item)}><Icon d="M9 9h10v10H9zM5 5h10v10" /></button>
                   <button type="button" className="icon-btn" title={text.exportMsgMd} onClick={() => exportMessageMd(item, true)}><Icon d="M12 3v12M7 10l5 5 5-5M5 21h14" /></button>
                   <button type="button" className="icon-btn" title={text.exportMsgPdf} onClick={() => exportMessagePdf(item)}><Icon d="M6 2h9l5 5v15H6zM15 2v5h5" /></button>
+                  <button type="button" className="icon-btn danger" title={text.deleteLabel} onClick={() => void deleteMessage(item.id)}><Icon d="M3 6h18M8 6V4h8v2M7 6l1 14h8l1-14M10 10v7M14 10v7" /></button>
                 </span>
               </header>
               <div className="markdown-body" dangerouslySetInnerHTML={{ __html: renderMarkdown(item.content) }} />

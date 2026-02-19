@@ -100,3 +100,54 @@
   - `npm run build` 通过
 - 文档
   - 更新 `docs/USER_GUIDE.md` 知识库使用章节
+
+### [2026-02-19 14:10] Chat UI 布局与导航优化
+- 问题描述
+  - 侧边栏不可收起；聊天消息区下沿与输入框之间空白过大；单条消息删除不便；新建会话入口位置不友好。
+- 根因定位
+  - 布局未支持侧边栏折叠；消息区使用固定高度限制；新建入口绑定在会话列表头部。
+- 解决方案
+  - 侧边栏新增“收起/展开”按钮并支持折叠。
+  - 侧边栏底部新增“新建会话”，点击后自动切到聊天并打开新建弹窗。
+  - 消息区改为 `minmax(0,1fr)` 自适应高度，去除固定 `max-height`。
+  - 每条消息增加独立删除按钮。
+- 代码变更（文件/函数）
+  - `frontend/src/App.tsx`
+  - `frontend/src/pages/ChatCenter.tsx`
+  - `frontend/src/styles/global.css`
+  - `docs/USER_GUIDE.md`
+- 验证结果
+  - `npm run build` 通过
+
+### [2026-02-19 14:40] 会话面板可拖拽宽度
+- 问题描述
+  - 聊天左侧会话/配置区宽度固定，信息拥挤。
+- 根因定位
+  - Chat 网格布局未暴露可调宽度参数。
+- 解决方案
+  - 左侧面板加入拖拽句柄，更新 grid 列宽；宽度持久化到 localStorage。
+- 代码变更（文件/函数）
+  - `frontend/src/pages/ChatCenter.tsx`
+  - `frontend/src/styles/global.css`
+  - `docs/USER_GUIDE.md`
+- 验证结果
+  - `npm run build` 通过
+
+### [2026-02-19 15:00] Runtime 默认参数更新
+- 问题描述
+  - 设置中心 Runtime Profile 默认 params 过低，需调整为更常用值。
+- 根因定位
+  - 前端默认 params 固定为 `{"temperature":0.2}`。
+- 解决方案
+  - 默认 params 调整为 `{"temperature":0.7,"top_p":0.95}`。
+- 代码变更（文件/函数）
+  - `frontend/src/pages/SettingsCenter.tsx`
+  - `docs/USER_GUIDE.md`
+- 验证结果
+  - `npm run build` 通过
+- 影响评估
+  - 仅更新默认表单值，不影响已有 Profile。
+- 影响评估
+  - 前端交互增强，不影响后端接口。
+- 影响评估
+  - 仅前端体验优化，不影响后端接口。

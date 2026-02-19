@@ -15,6 +15,7 @@ type Theme = "light" | "dark";
 const SESSION_KEY = "fh_session";
 const LOCALE_KEY = "fh_locale";
 const THEME_KEY = "fh_theme";
+const OPEN_CHAT_CREATE_EVENT = "fh:open-chat-create";
 const SESSION_TTL_MS = 14 * 24 * 60 * 60 * 1000;
 
 function readSession(storage: Storage): UserSession | null {
@@ -113,6 +114,7 @@ export function App() {
   const [health, setHealth] = useState<"online" | "offline">("offline");
   const [locale, setLocale] = useState<Locale>(() => loadLocale());
   const [theme, setTheme] = useState<Theme>(() => loadTheme());
+  const [navCollapsed, setNavCollapsed] = useState(false);
 
   const text = TEXT[locale];
 
@@ -198,11 +200,27 @@ export function App() {
   }
 
   return (
-    <div className="app-shell">
-      <aside className="side-nav">
+    <div className={navCollapsed ? "app-shell nav-collapsed" : "app-shell"}>
+      <aside className={navCollapsed ? "side-nav collapsed" : "side-nav"}>
         <div className="brand">
-          <h1>Aurelia Health</h1>
-          <p>{text.brandSub}</p>
+          <div className="brand-row">
+            <div>
+              <h1>Aurelia Health</h1>
+              <p>{text.brandSub}</p>
+            </div>
+            <button
+              type="button"
+              className="nav-toggle"
+              onClick={() => setNavCollapsed(true)}
+              title={locale === "zh" ? "收起侧边栏" : "Collapse sidebar"}
+              aria-label={locale === "zh" ? "收起侧边栏" : "Collapse sidebar"}
+            >
+              <svg viewBox="0 0 24 24" aria-hidden="true">
+                <path d="M5 4h10a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2H5z" fill="currentColor" opacity="0.18" />
+                <path d="M19 4v16M13 8l-4 4 4 4" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
+              </svg>
+            </button>
+          </div>
         </div>
         <nav>
           {navItems.map((item) => (
@@ -216,11 +234,36 @@ export function App() {
             </button>
           ))}
         </nav>
+        <div className="side-nav-footer">
+          <button
+            type="button"
+            onClick={() => {
+              setActiveNav("chat");
+              window.dispatchEvent(new Event(OPEN_CHAT_CREATE_EVENT));
+            }}
+          >
+            {locale === "zh" ? "新建会话" : "New Chat"}
+          </button>
+        </div>
       </aside>
 
       <main className="workspace">
         <header className="topbar">
-          <div>
+          <div className="topbar-left">
+            {navCollapsed && (
+              <button
+                type="button"
+                className="nav-toggle"
+                onClick={() => setNavCollapsed(false)}
+                title={locale === "zh" ? "展开侧边栏" : "Expand sidebar"}
+                aria-label={locale === "zh" ? "展开侧边栏" : "Expand sidebar"}
+              >
+                <svg viewBox="0 0 24 24" aria-hidden="true">
+                  <path d="M9 4h10a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2H9z" fill="currentColor" opacity="0.18" />
+                  <path d="M5 4v16M11 8l4 4-4 4" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
+                </svg>
+              </button>
+            )}
             <strong>
               {text.currentRole}: {session.role}
             </strong>
@@ -228,6 +271,7 @@ export function App() {
               {health === "online" ? text.online : text.offline}
             </span>
           </div>
+          <div id="chat-pill-slot" className="topbar-pill-slot" />
           <div className="topbar-actions">
             <div className="segmented">
               <button type="button" className={locale === "zh" ? "" : "ghost"} onClick={() => setLocale("zh")}>

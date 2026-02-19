@@ -192,7 +192,7 @@ export function SettingsCenter({ token, locale }: { token: string; locale: Local
     llm_model_id: "",
     embedding_model_id: "",
     reranker_model_id: "",
-    params: '{"temperature":0.2}',
+    params: '{"temperature":0.7,"top_p":0.95}',
     is_default: true,
   });
   const [editingProfileId, setEditingProfileId] = useState<string | null>(null);
@@ -396,7 +396,7 @@ export function SettingsCenter({ token, locale }: { token: string; locale: Local
       llm_model_id: "",
       embedding_model_id: "",
       reranker_model_id: "",
-      params: '{"temperature":0.2}',
+      params: '{"temperature":0.7,"top_p":0.95}',
       is_default: true,
     });
   };
