@@ -3,7 +3,7 @@
 ## Metadata
 - Module: export-center
 - Created at: 2026-03-05 20:41 +08:00
-- Last updated: 2026-03-05 20:41 +08:00
+- Last updated: 2026-03-05 21:21 +08:00
 - Related files: `backend/app/services/export_service.py`, `backend/tests/test_export_service_regression.py`, `doc/api/export.md`, `docs/USER_GUIDE.md`
 - Dependencies: chat, knowledge_base, file_preview, desensitization
 - User doc path: `docs/USER_GUIDE.md`
@@ -30,6 +30,26 @@
   - Chat/KB records -> ExportItem rows -> ZIP (`manifest`, `chat`, `kb`)
 
 ## Debug History
+### [2026-03-05 21:21] Chat export switched to Markdown format
+- Problem:
+  - User requested chat records in Export Center to be exported as Markdown instead of JSON.
+- Root cause:
+  - Chat export packaging wrote `chat/{message_id}.json` only.
+- Solution:
+  - Added `_chat_message_markdown(meta)` renderer and changed chat archive output to `chat/{message_id}.md`.
+  - Kept API and task flow unchanged; only archive file format changed for chat records.
+- Code changes:
+  - `backend/app/services/export_service.py`
+  - `backend/tests/test_export_service_regression.py`
+- Validation:
+  - `backend/.venv/Scripts/python.exe -m pytest -q tests/test_export_service_regression.py tests/test_stage4_kb_export_flow.py` passed (`3 passed`).
+  - `ruff check app/services/export_service.py tests/test_export_service_regression.py` passed.
+- Impact:
+  - Export ZIP is easier to read directly; frontend download behavior is unchanged.
+- Docs updated:
+  - `doc/api/export.md`: chat output updated to `chat/*.md`.
+  - `docs/USER_GUIDE.md`: added user-facing note that chat exports are Markdown files.
+
 ### [2026-03-05 20:41] ZIP only contains manifest and item_count is 0
 - Problem:
   - User-created export jobs downloaded as ZIP with only `manifest.json` and `item_count=0`.

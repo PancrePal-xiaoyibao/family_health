@@ -72,6 +72,26 @@ def _safe_archive_name(prefix: str, item_id: str, path: Path) -> str:
     return f"{prefix}/{item_id}_{path.name}"
 
 
+def _chat_message_markdown(meta: dict) -> str:
+    role = str(meta.get("role", "unknown"))
+    created_at = str(meta.get("created_at", ""))
+    session_id = str(meta.get("session_id", ""))
+    content = str(meta.get("content", ""))
+    lines = [
+        "# Chat Message Export",
+        "",
+        f"- role: {role}",
+        f"- created_at: {created_at}",
+        f"- session_id: {session_id}",
+        "",
+        "## Content",
+        "",
+        content,
+        "",
+    ]
+    return "\n".join(lines)
+
+
 def create_export_job(
     db: Session,
     user_id: str,
@@ -180,8 +200,8 @@ def create_export_job(
             meta = json.loads(item.meta_json)
             if item.item_type == "chat_message":
                 zf.writestr(
-                    f"chat/{item.item_id}.json",
-                    json.dumps(meta, ensure_ascii=False, indent=2),
+                    f"chat/{item.item_id}.md",
+                    _chat_message_markdown(meta),
                 )
             elif item.item_type == "kb_document":
                 zf.writestr(

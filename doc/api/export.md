@@ -20,7 +20,7 @@
 
 ## 打包输出
 - ZIP 必含 `manifest.json`（任务信息 + item 统计）
-- `chat/*.json`：聊天消息导出（角色、内容、会话 ID、时间）
+- `chat/*.md`：聊天消息导出（Markdown 格式，包含角色、内容、会话 ID、时间）
 - `kb/meta/*.json`：知识库文档元数据（总是导出）
 - `kb/sanitized/*`：脱敏文本（`include_sanitized_text=true`）
 - `kb/raw/*`：原始文件（`include_raw_file=true`）

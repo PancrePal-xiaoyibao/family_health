@@ -160,7 +160,12 @@ def test_export_chat_limit_clamped_to_positive():
         assert archive_path.exists()
         with zipfile.ZipFile(archive_path, "r") as zf:
             names = set(zf.namelist())
-            assert f"chat/{message_id}.json" in names
+            chat_md = f"chat/{message_id}.md"
+            assert chat_md in names
+            content = zf.read(chat_md).decode("utf-8")
+            assert "# Chat Message Export" in content
+            assert "## Content" in content
+            assert "hello export" in content
             manifest = json.loads(zf.read("manifest.json"))
             assert manifest["item_count"] == 1
             assert manifest["counts"]["chat_message"] == 1
