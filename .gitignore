@@ -136,3 +136,4 @@ docs/_export/
 *.orig
 .cache
 FamilyHealth.spec
+frontend/package-lock.json
