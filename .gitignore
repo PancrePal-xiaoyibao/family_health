@@ -137,3 +137,4 @@ docs/_export/
 .cache
 FamilyHealth.spec
 frontend/package-lock.json
+Microsoft/Windows/PowerShell/ModuleAnalysisCache

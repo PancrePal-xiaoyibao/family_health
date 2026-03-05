@@ -58,7 +58,7 @@ python3 quickstart.py --lan
 打包 `.exe`：
 ```powershell
 pip install pyinstaller
-build_launcher.bat
+.\build_launcher.bat
 # 产出 dist/FamilyHealth.exe，复制到项目根目录即可
 ```
 
