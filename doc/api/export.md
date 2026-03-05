@@ -19,8 +19,12 @@
 ```
 
 ## 打包输出
-- ZIP 包含 `manifest.json`
-- `chat/*.json`
-- `kb/*.md`（仅脱敏文本）
+- ZIP 必含 `manifest.json`（任务信息 + item 统计）
+- `chat/*.json`：聊天消息导出（角色、内容、会话 ID、时间）
+- `kb/meta/*.json`：知识库文档元数据（总是导出）
+- `kb/sanitized/*`：脱敏文本（`include_sanitized_text=true`）
+- `kb/raw/*`：原始文件（`include_raw_file=true`）
 
-说明：导出任务仅打包当前登录用户可见的数据。
+说明：
+- 导出任务仅打包当前登录用户可见的数据（按 `knowledge_bases.user_id` 和 `chat_sessions.user_id` 判定）。
+- `chat_limit` 会约束到 `1~1000`，非法值回退到 `200`。

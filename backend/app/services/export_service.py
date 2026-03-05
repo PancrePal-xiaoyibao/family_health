@@ -6,6 +6,7 @@ from pathlib import Path
 from uuid import uuid4
 
 from fastapi.responses import FileResponse
+from sqlalchemy import or_
 from sqlalchemy.orm import Session
 
 from app.core.paths import sanitized_workspace_root
@@ -41,6 +42,7 @@ def _add_export_item(
     job_id: str,
     item_type: str,
     item_id: str,
+    source_path: str | None,
     sanitized_path: str | None,
     meta: dict,
 ):
@@ -50,10 +52,24 @@ def _add_export_item(
             job_id=job_id,
             item_type=item_type,
             item_id=item_id,
+            source_path=source_path,
             sanitized_path=sanitized_path,
             meta_json=json.dumps(meta, ensure_ascii=False),
         )
     )
+
+
+def _parse_chat_limit(filters: dict) -> int:
+    raw_limit = filters.get("chat_limit", 200)
+    try:
+        parsed = int(raw_limit)
+    except (TypeError, ValueError):
+        return 200
+    return max(1, min(parsed, 1000))
+
+
+def _safe_archive_name(prefix: str, item_id: str, path: Path) -> str:
+    return f"{prefix}/{item_id}_{path.name}"
 
 
 def create_export_job(
@@ -79,12 +95,13 @@ def create_export_job(
     db.flush()
 
     if "chat" in export_types:
+        chat_limit = _parse_chat_limit(filters)
         rows = (
             db.query(ChatMessage)
             .join(ChatSession, ChatSession.id == ChatMessage.session_id)
             .filter(ChatSession.user_id == user_id)
             .order_by(ChatMessage.created_at.desc())
-            .limit(int(filters.get("chat_limit", 200)))
+            .limit(chat_limit)
             .all()
         )
         for row in rows:
@@ -93,38 +110,68 @@ def create_export_job(
                 job_id=job.id,
                 item_type="chat_message",
                 item_id=row.id,
+                source_path=None,
                 sanitized_path=None,
-                meta={"role": row.role, "content": row.content},
+                meta={
+                    "role": row.role,
+                    "content": row.content,
+                    "session_id": row.session_id,
+                    "created_at": row.created_at.isoformat(),
+                },
             )
 
     if "kb" in export_types:
-        rows = (
-            db.query(KbDocument)
-            .filter(
-                KbDocument.member_id == user_id, KbDocument.masked_path.is_not(None)
-            )
-            .all()
+        query = (
+            db.query(KbDocument, KnowledgeBase)
+            .join(KnowledgeBase, KnowledgeBase.id == KbDocument.kb_id)
+            .filter(KnowledgeBase.user_id == user_id)
+            .order_by(KbDocument.updated_at.desc())
         )
-        for row in rows:
+        if include_raw_file and include_sanitized_text:
+            query = query.filter(
+                or_(KbDocument.source_path.is_not(None), KbDocument.masked_path.is_not(None))
+            )
+        elif include_raw_file:
+            query = query.filter(KbDocument.source_path.is_not(None))
+        elif include_sanitized_text:
+            query = query.filter(KbDocument.masked_path.is_not(None))
+        rows = query.all()
+        for row, kb in rows:
             _add_export_item(
                 db,
                 job_id=job.id,
                 item_type="kb_document",
                 item_id=row.id,
+                source_path=row.source_path,
                 sanitized_path=row.masked_path,
-                meta={"status": row.status},
+                meta={
+                    "kb_id": row.kb_id,
+                    "kb_name": kb.name,
+                    "status": row.status,
+                    "source_type": row.source_type,
+                    "source_path": row.source_path,
+                    "masked_path": row.masked_path,
+                    "updated_at": row.updated_at.isoformat(),
+                },
             )
 
     out_dir = sanitized_workspace_root() / "exports"
     out_dir.mkdir(parents=True, exist_ok=True)
     archive_path = out_dir / f"{job.id}.zip"
 
+    db.flush()
     items = db.query(ExportItem).filter(ExportItem.job_id == job.id).all()
     manifest = {
         "job_id": job.id,
         "member_scope": member_scope,
         "export_types": export_types,
+        "include_raw_file": include_raw_file,
+        "include_sanitized_text": include_sanitized_text,
         "item_count": len(items),
+        "counts": {
+            "chat_message": sum(1 for item in items if item.item_type == "chat_message"),
+            "kb_document": sum(1 for item in items if item.item_type == "kb_document"),
+        },
     }
 
     with zipfile.ZipFile(archive_path, "w", zipfile.ZIP_DEFLATED) as zf:
@@ -136,14 +183,29 @@ def create_export_job(
                     f"chat/{item.item_id}.json",
                     json.dumps(meta, ensure_ascii=False, indent=2),
                 )
-            elif (
-                item.item_type == "kb_document"
-                and include_sanitized_text
-                and item.sanitized_path
-            ):
-                path = Path(item.sanitized_path)
-                if path.exists():
-                    zf.write(path, f"kb/{path.name}")
+            elif item.item_type == "kb_document":
+                zf.writestr(
+                    f"kb/meta/{item.item_id}.json",
+                    json.dumps(meta, ensure_ascii=False, indent=2),
+                )
+                if include_sanitized_text and item.sanitized_path:
+                    sanitized_path = Path(item.sanitized_path)
+                    if sanitized_path.exists():
+                        zf.write(
+                            sanitized_path,
+                            _safe_archive_name(
+                                "kb/sanitized",
+                                item.item_id,
+                                sanitized_path,
+                            ),
+                        )
+                if include_raw_file and item.source_path:
+                    source_path = Path(item.source_path)
+                    if source_path.exists():
+                        zf.write(
+                            source_path,
+                            _safe_archive_name("kb/raw", item.item_id, source_path),
+                        )
 
     job.status = "done"
     job.archive_path = str(archive_path)
@@ -229,6 +291,7 @@ def get_export_job(db: Session, user_id: str, job_id: str) -> dict:
             "id": item.id,
             "item_type": item.item_type,
             "item_id": item.item_id,
+            "source_path": item.source_path,
             "sanitized_path": item.sanitized_path,
         }
         for item in items
