@@ -129,3 +129,71 @@ def test_mcp_bindings_used_when_session_default_empty(client: TestClient):
     assert qa_resp.status_code == 200
     assert qa_resp.json()["data"]["context"]["enabled_mcp_ids"] == [mcp_id]
     assert len(qa_resp.json()["data"]["mcp_results"]) == 1
+
+
+def test_qa_persists_tool_calls_and_supports_regenerate(client: TestClient):
+    token = _bootstrap_and_login(client)
+    headers = {"Authorization": f"Bearer {token}"}
+
+    create = client.post(
+        "/api/v1/mcp/servers",
+        headers=headers,
+        json={
+            "name": "tool-d",
+            "endpoint": "mock://tool-d",
+            "auth_type": "none",
+            "enabled": True,
+            "timeout_ms": 8000,
+        },
+    )
+    assert create.status_code == 200
+    mcp_id = create.json()["data"]["id"]
+
+    session_resp = client.post(
+        "/api/v1/chat/sessions",
+        headers=headers,
+        json={"title": "regen-session", "default_enabled_mcp_ids": [mcp_id]},
+    )
+    assert session_resp.status_code == 200
+    session_id = session_resp.json()["data"]["id"]
+
+    qa_resp = client.post(
+        "/api/v1/agent/qa",
+        headers=headers,
+        json={"session_id": session_id, "query": "what did you do?"},
+    )
+    assert qa_resp.status_code == 200
+    tool_calls = qa_resp.json()["data"]["tool_calls"]
+    assert any(item["kind"] == "mcp" for item in tool_calls)
+    mcp_trace = next(item for item in tool_calls if item["kind"] == "mcp")
+    assert "request" in mcp_trace
+    assert "response" in mcp_trace
+    assert "raw_detail" in mcp_trace
+
+    messages_resp = client.get(
+        f"/api/v1/chat/sessions/{session_id}/messages",
+        headers=headers,
+    )
+    assert messages_resp.status_code == 200
+    items = messages_resp.json()["data"]["items"]
+    assert len(items) == 2
+    assert items[1]["tool_calls"]
+    user_message_id = items[0]["id"]
+
+    regen_resp = client.post(
+        "/api/v1/agent/qa",
+        headers=headers,
+        json={
+            "session_id": session_id,
+            "regenerate_from_message_id": user_message_id,
+        },
+    )
+    assert regen_resp.status_code == 200
+
+    final_messages = client.get(
+        f"/api/v1/chat/sessions/{session_id}/messages",
+        headers=headers,
+    )
+    assert final_messages.status_code == 200
+    final_items = final_messages.json()["data"]["items"]
+    assert [item["role"] for item in final_items] == ["user", "assistant", "assistant"]

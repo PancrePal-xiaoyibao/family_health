@@ -320,6 +320,24 @@ def _fallback_answer(query: str, attachment_count: int, mcp_count: int) -> str:
     )
 
 
+def _clip_preview(text: str, limit: int) -> str:
+    normalized = text.strip()
+    if len(normalized) <= limit:
+        return normalized
+    return normalized[:limit] + "..."
+
+
+def _load_regenerate_target(db, session_id: str, message_id: str) -> ChatMessage:
+    row = (
+        db.query(ChatMessage)
+        .filter(ChatMessage.id == message_id, ChatMessage.session_id == session_id)
+        .first()
+    )
+    if not row or row.role != "user":
+        raise ChatError(4008, "Regenerate target user message not found")
+    return row
+
+
 def _prepare_context(
     db,
     user,
@@ -330,19 +348,29 @@ def _prepare_context(
     attachments_ids: list[str] | None,
     enabled_mcp_ids: list[str] | None,
     runtime_profile_id: str | None,
+    regenerate_from_message_id: str | None = None,
 ) -> dict:
     session = get_session_for_user(db, session_id=session_id, user_id=user.id)
     normalized_query = query.strip()
-    if not normalized_query and not attachments_ids:
-        raise ChatError(4005, "Please provide text query or upload attachments")
+    regenerate_target: ChatMessage | None = None
+    if regenerate_from_message_id:
+        regenerate_target = _load_regenerate_target(
+            db, session_id=session_id, message_id=regenerate_from_message_id
+        )
+        normalized_query = regenerate_target.content.strip()
+        if not normalized_query:
+            raise ChatError(4009, "Attachment-only message cannot be regenerated")
+    else:
+        if not normalized_query and not attachments_ids:
+            raise ChatError(4005, "Please provide text query or upload attachments")
 
-    add_message(
-        db,
-        session_id=session_id,
-        user_id=user.id,
-        role="user",
-        content=normalized_query or "(attachment-only mode)",
-    )
+        add_message(
+            db,
+            session_id=session_id,
+            user_id=user.id,
+            role="user",
+            content=normalized_query or "(attachment-only mode)",
+        )
 
     history = (
         db.query(ChatMessage)
@@ -350,6 +378,14 @@ def _prepare_context(
         .order_by(ChatMessage.created_at.asc())
         .all()
     )
+    if regenerate_target:
+        cutoff = next(
+            (idx for idx, item in enumerate(history) if item.id == regenerate_target.id),
+            None,
+        )
+        if cutoff is None:
+            raise ChatError(4008, "Regenerate target user message not found")
+        history = history[: cutoff + 1]
     trimmed = _trim_history(
         [{"role": _role_name(m.role), "content": m.content} for m in history],
         limit=getattr(session, "context_message_limit", None),
@@ -378,10 +414,14 @@ def _prepare_context(
         request_override_ids=enabled_mcp_ids,
     )
     mcp_out = route_tools(
-        db, user_id=user.id, enabled_server_ids=effective_mcp_ids, query=query
+        db,
+        user_id=user.id,
+        enabled_server_ids=effective_mcp_ids,
+        query=normalized_query or query,
     )
     kb_hits: list[dict] = []
     kb_warnings: list[str] = []
+    telemetry: list[dict] = list(mcp_out.get("events") or [])
     if kb_ids:
         for kb_id in kb_ids:
             if not kb_id:
@@ -397,9 +437,46 @@ def _prepare_context(
                 for hit in hits:
                     hit["kb_id"] = kb_id
                 kb_hits.extend(hits)
+                telemetry.append(
+                    {
+                        "kind": "kb",
+                        "status": "success" if hits else "empty",
+                        "kb_id": kb_id,
+                        "query": normalized_query or "(attachment-only mode)",
+                        "hit_count": len(hits),
+                        "hits": [
+                            {
+                                "score": (item.get("score", {}) or {}).get("total", 0),
+                                "preview": _clip_preview(
+                                    str(
+                                        item.get("text")
+                                        or item.get("chunk_text")
+                                        or ""
+                                    ),
+                                    280,
+                                ),
+                            }
+                            for item in hits[:3]
+                        ],
+                        "detail": (
+                            f"KB {kb_id} returned {len(hits)} hit(s)"
+                            if hits
+                            else f"KB {kb_id} returned no hits"
+                        ),
+                    }
+                )
             except KbError as exc:
                 if exc.code == 7003:
                     kb_warnings.append(f"Knowledge base not ready: {kb_id}")
+                    telemetry.append(
+                        {
+                            "kind": "kb",
+                            "status": "warning",
+                            "kb_id": kb_id,
+                            "query": normalized_query or "(attachment-only mode)",
+                            "detail": f"Knowledge base not ready: {kb_id}",
+                        }
+                    )
                     continue
                 raise ChatError(exc.code, exc.message) from exc
         kb_hits.sort(
@@ -422,6 +499,7 @@ def _prepare_context(
         "system_prompt": _effective_system_prompt(session, background_prompt),
         "runtime_profile_id": runtime_profile_id,
         "attachment_meta": attachment_meta,
+        "telemetry": telemetry,
     }
 
 
@@ -435,6 +513,7 @@ def run_agent_qa(
     attachments_ids: list[str] | None,
     enabled_mcp_ids: list[str] | None,
     runtime_profile_id: str | None,
+    regenerate_from_message_id: str | None = None,
 ) -> dict:
     ctx = _prepare_context(
         db,
@@ -446,6 +525,7 @@ def run_agent_qa(
         attachments_ids,
         enabled_mcp_ids,
         runtime_profile_id,
+        regenerate_from_message_id,
     )
     session = ctx["session"]
     reasoning_enabled, reasoning_budget, include_reasoning = _reasoning_settings(
@@ -514,6 +594,7 @@ def run_agent_qa(
         role="assistant",
         content=answer,
         reasoning_content=reasoning_text if include_reasoning else None,
+        tool_calls=ctx["telemetry"],
     )
 
     return {
@@ -529,6 +610,7 @@ def run_agent_qa(
         },
         "mcp_results": ctx["mcp_out"]["results"],
         "tool_warnings": ctx["mcp_out"]["warnings"] + ctx.get("kb_warnings", []),
+        "tool_calls": ctx["telemetry"],
     }
 
 
@@ -546,6 +628,7 @@ def stream_agent_qa(
     attachments_ids: list[str] | None,
     enabled_mcp_ids: list[str] | None,
     runtime_profile_id: str | None,
+    regenerate_from_message_id: str | None = None,
 ) -> Generator[str, None, None]:
     ctx = _prepare_context(
         db,
@@ -557,6 +640,7 @@ def stream_agent_qa(
         attachments_ids,
         enabled_mcp_ids,
         runtime_profile_id,
+        regenerate_from_message_id,
     )
     session = ctx["session"]
     reasoning_enabled, reasoning_budget, include_reasoning = _reasoning_settings(
@@ -565,6 +649,9 @@ def stream_agent_qa(
 
     answer_buf: list[str] = []
     reasoning_buf: list[str] = []
+
+    for event in ctx["telemetry"]:
+        yield _sse_event({"type": "tool", "tool_call": event})
 
     try:
         profile = _resolve_runtime_profile(db, user.id, runtime_profile_id, session)
@@ -683,6 +770,7 @@ def stream_agent_qa(
         role="assistant",
         content=final_answer,
         reasoning_content="".join(reasoning_buf) if include_reasoning else None,
+        tool_calls=ctx["telemetry"],
     )
 
     yield _sse_event(
@@ -691,5 +779,6 @@ def stream_agent_qa(
             "assistant_message_id": assistant_msg.id,
             "assistant_answer": final_answer,
             "reasoning_content": "".join(reasoning_buf) if include_reasoning else "",
+            "tool_calls": ctx["telemetry"],
         }
     )

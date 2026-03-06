@@ -93,7 +93,27 @@ export type ChatMessage = {
   role: string;
   content: string;
   reasoning_content?: string | null;
+  tool_calls?: ToolCall[] | null;
+  citations?: Record<string, unknown>[] | Record<string, unknown> | null;
   created_at: string;
+};
+
+export type ToolCall = {
+  kind: "mcp" | "kb" | string;
+  status: "success" | "error" | "warning" | "empty" | "unavailable" | string;
+  server_id?: string;
+  server_name?: string;
+  kb_id?: string;
+  query?: string;
+  output?: string;
+  error?: string;
+  detail?: string;
+  duration_ms?: number;
+  hit_count?: number;
+  hits?: Array<{ score?: number; preview?: string }>;
+  request?: Record<string, unknown>;
+  response?: Record<string, unknown>;
+  raw_detail?: string;
 };
 
 export type KnowledgeBase = {

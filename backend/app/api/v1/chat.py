@@ -30,6 +30,7 @@ from app.services.chat_service import (
     export_session_markdown,
     export_session_payload,
     list_messages,
+    message_to_dict,
     list_sessions,
     session_to_dict,
     ensure_session_chat_kb,
@@ -282,16 +283,7 @@ def list_message_api(
         return error(exc.code, exc.message, trace_id, status_code=404)
     return ok(
         {
-            "items": [
-                {
-                    "id": row.id,
-                    "role": row.role,
-                    "content": row.content,
-                    "reasoning_content": row.reasoning_content,
-                    "created_at": row.created_at.isoformat(),
-                }
-                for row in rows
-            ]
+            "items": [message_to_dict(row) for row in rows]
         },
         trace_id,
     )

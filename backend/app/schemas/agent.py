@@ -9,3 +9,4 @@ class AgentQaRequest(BaseModel):
     enabled_mcp_ids: list[str] | None = None
     runtime_profile_id: str | None = None
     attachments_ids: list[str] | None = None
+    regenerate_from_message_id: str | None = None

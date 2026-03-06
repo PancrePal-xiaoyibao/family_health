@@ -1,41 +1,89 @@
-# Agent QA API（阶段 2+3）
+# Agent QA API
 
-- `GET /api/v1/agent/roles`（读取后端 Markdown 角色库）
-- `GET /api/v1/agent/roles/{role_id}`（读取角色提示词全文）
+- `GET /api/v1/agent/roles`
+- `GET /api/v1/agent/roles/{role_id}`
 - `POST /api/v1/agent/qa`
-- `POST /api/v1/agent/qa/stream`（SSE）
+- `POST /api/v1/agent/qa/stream` (SSE)
 
-请求：
+## Request
+
 ```json
 {
-  "session_id": "...",
-  "query": "",
+  "session_id": "session-id",
+  "query": "最新血脂指南怎么看",
   "kb_ids": ["kb-a", "kb-b"],
-  "background_prompt": "可选：仅本次请求覆盖会话角色提示词",
+  "background_prompt": "optional request-level prompt override",
   "enabled_mcp_ids": ["mcp-a"],
   "runtime_profile_id": null,
-  "attachments_ids": ["att-1"]
+  "attachments_ids": ["att-1"],
+  "regenerate_from_message_id": null
 }
 ```
 
-行为：
-1. 写入用户消息（不写入背景提示词/角色提示词）。
-2. 读取会话历史并按窗口裁剪。
-3. 仅加载 `parse_status=done` 的脱敏附件文本。
-4. 支持“仅附件模式”：`query` 可为空，但 `attachments_ids` 至少一个。
-5. 若 `kb_ids` 传入多个，按各 KB 的检索配置获取结果并合并。
-6. 计算 MCP 生效列表：本轮 > 会话默认 > 全局绑定。
-7. 并发执行 MCP，失败降级为 `tool_warnings`。
-8. 优先按 Runtime Profile 真实调用已配置 Provider（Gemini/OpenAI 兼容）；未配置时回退本地兜底回答。
-9. 生成 assistant 回答并入库。
+## Behavior
 
-流式事件格式（`qa/stream`）：
-- `{"type":"message","delta":"..."}`：回答增量
-- `{"type":"reasoning","delta":"..."}`：思维链增量（当会话 `show_reasoning=true` 且模型支持）
-- `{"type":"done","assistant_message_id":"...","assistant_answer":"...","reasoning_content":"..."}`：结束
-- `{"type":"error","message":"..."}`：失败
+1. Normal QA writes a new user message, then assembles trimmed history, attachment context, KB retrieval, and MCP outputs.
+2. `regenerate_from_message_id` reuses an existing `user` message in the same session and does not create another user message.
+3. Regeneration trims history to the target user turn, so the model does not see the old assistant answer being regenerated.
+4. KB retrieval is additive per selected KB; `7003` (KB not ready) is downgraded to warning.
+5. MCP effective order remains: request override > session default > global QA bindings.
+6. Assistant messages persist:
+   - `reasoning_content`
+   - `tool_calls` (structured MCP / KB trace)
 
-思维链参数来源（会话级）：
-- `reasoning_enabled`：`null/true/false`
-- `reasoning_budget`：思维预算（Gemini 映射到 `thinkingBudget`；DeepSeek/兼容路径映射到 `max_tokens` 兜底）
-- `show_reasoning`：是否向前端输出 reasoning 事件
+## Non-stream Response
+
+```json
+{
+  "session_id": "session-id",
+  "assistant_message_id": "msg-id",
+  "assistant_answer": "...",
+  "reasoning_content": "...",
+  "context": {
+    "history_messages": 4,
+    "attachment_chunks": 1,
+    "kb_hits": 3,
+    "enabled_mcp_ids": ["mcp-a"]
+  },
+  "mcp_results": [],
+  "tool_warnings": [],
+  "tool_calls": [
+    {
+      "kind": "mcp",
+      "status": "success",
+      "server_id": "mcp-a",
+      "server_name": "pubmed-search",
+      "query": "最新血脂指南怎么看",
+      "output": "...",
+      "duration_ms": 132
+    },
+    {
+      "kind": "kb",
+      "status": "success",
+      "kb_id": "kb-a",
+      "query": "最新血脂指南怎么看",
+      "hit_count": 2,
+      "hits": [
+        {
+          "score": 0.91,
+          "preview": "..."
+        }
+      ],
+      "detail": "KB kb-a returned 2 hit(s)"
+    }
+  ]
+}
+```
+
+## Stream Events
+
+- `{"type":"tool","tool_call":{...}}`
+- `{"type":"message","delta":"..."}`
+- `{"type":"reasoning","delta":"..."}`
+- `{"type":"done","assistant_message_id":"...","assistant_answer":"...","reasoning_content":"...","tool_calls":[...]}`
+- `{"type":"error","message":"..."}`
+
+Notes:
+
+- Tool events are emitted before model output starts, so the UI can show whether MCP / KB lookup actually ran.
+- If the client aborts the HTTP stream, the frontend can stop rendering immediately and keep partial output.

@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from datetime import datetime, timezone
+from time import perf_counter
 from typing import Any
 from uuid import uuid4
 
@@ -202,10 +203,39 @@ def list_agent_bindings(
 def _call_single_tool(server: McpServer, query: str) -> dict[str, Any]:
     if server.endpoint.startswith("mock://fail"):
         raise TimeoutError("simulated timeout")
+    request_meta = {
+        "endpoint": server.endpoint,
+        "method": "mock.call",
+        "headers": {
+            "x-mcp-server": server.name,
+            "x-mcp-auth-type": server.auth_type,
+        },
+        "payload": {"query": query},
+        "timeout_ms": server.timeout_ms,
+    }
+    response_meta = {
+        "status": "ok",
+        "content_type": "application/json",
+        "body": {
+            "server_id": server.id,
+            "server_name": server.name,
+            "echo_query": query,
+            "result": f"[{server.name}] {query}",
+        },
+    }
     return {
         "server_id": server.id,
         "server_name": server.name,
+        "query": query,
         "output": f"[{server.name}] {query}",
+        "request": request_meta,
+        "response": response_meta,
+        "raw_detail": (
+            "request="
+            + str(request_meta)
+            + "\nresponse="
+            + str(response_meta)
+        ),
     }
 
 
@@ -216,7 +246,7 @@ def route_tools(
     query: str,
 ) -> dict:
     if not enabled_server_ids:
-        return {"results": [], "warnings": []}
+        return {"results": [], "warnings": [], "events": []}
 
     servers = (
         db.query(McpServer)
@@ -229,27 +259,96 @@ def route_tools(
     )
     by_id = {row.id: row for row in servers}
     warnings: list[str] = []
+    events: list[dict] = []
     ordered_servers: list[McpServer] = []
     for sid in enabled_server_ids:
         row = by_id.get(sid)
         if row:
             ordered_servers.append(row)
         else:
-            warnings.append(f"MCP server unavailable: {sid}")
+            warning = f"MCP server unavailable: {sid}"
+            warnings.append(warning)
+            events.append(
+                {
+                    "kind": "mcp",
+                    "status": "unavailable",
+                    "server_id": sid,
+                    "server_name": sid,
+                    "detail": warning,
+                }
+            )
 
     max_workers = min(settings.mcp_max_parallel_tools, max(len(ordered_servers), 1))
     results: list[dict] = []
 
     with ThreadPoolExecutor(max_workers=max_workers) as pool:
         futures = {
-            pool.submit(_call_single_tool, server, query): server
+            pool.submit(_call_single_tool, server, query): (server, perf_counter())
             for server in ordered_servers
         }
         for future in as_completed(futures):
-            server = futures[future]
+            server, started = futures[future]
             try:
-                results.append(future.result(timeout=server.timeout_ms / 1000))
+                result = future.result(timeout=server.timeout_ms / 1000)
+                duration_ms = int((perf_counter() - started) * 1000)
+                result["duration_ms"] = duration_ms
+                results.append(result)
+                events.append(
+                    {
+                        "kind": "mcp",
+                        "status": "success",
+                        "server_id": server.id,
+                        "server_name": server.name,
+                        "query": query,
+                        "output": result.get("output", ""),
+                        "request": result.get("request"),
+                        "response": result.get("response"),
+                        "raw_detail": result.get("raw_detail"),
+                        "duration_ms": duration_ms,
+                        "detail": f"{server.name} returned in {duration_ms} ms",
+                    }
+                )
             except Exception as exc:  # noqa: BLE001
-                warnings.append(f"MCP {server.name} failed: {exc}")
+                warning = f"MCP {server.name} failed: {exc}"
+                warnings.append(warning)
+                events.append(
+                    {
+                        "kind": "mcp",
+                        "status": "error",
+                        "server_id": server.id,
+                        "server_name": server.name,
+                        "query": query,
+                        "error": str(exc),
+                        "request": {
+                            "endpoint": server.endpoint,
+                            "method": "mock.call",
+                            "headers": {
+                                "x-mcp-server": server.name,
+                                "x-mcp-auth-type": server.auth_type,
+                            },
+                            "payload": {"query": query},
+                            "timeout_ms": server.timeout_ms,
+                        },
+                        "response": {"status": "error", "body": {"error": str(exc)}},
+                        "raw_detail": (
+                            "request="
+                            + str(
+                                {
+                                    "endpoint": server.endpoint,
+                                    "method": "mock.call",
+                                    "headers": {
+                                        "x-mcp-server": server.name,
+                                        "x-mcp-auth-type": server.auth_type,
+                                    },
+                                    "payload": {"query": query},
+                                    "timeout_ms": server.timeout_ms,
+                                }
+                            )
+                            + "\nresponse="
+                            + str({"status": "error", "body": {"error": str(exc)}})
+                        ),
+                        "detail": warning,
+                    }
+                )
 
-    return {"results": results, "warnings": warnings}
+    return {"results": results, "warnings": warnings, "events": events}

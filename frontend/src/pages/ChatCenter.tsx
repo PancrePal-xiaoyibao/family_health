@@ -2,12 +2,12 @@ import { createPortal } from "react-dom";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import { api, ApiError } from "../api/client";
-import type { AgentRole, ChatMessage, ChatSession, KnowledgeBase, McpServer, ModelCatalog, RuntimeProfile } from "../api/types";
+import type { AgentRole, ChatMessage, ChatSession, KnowledgeBase, McpServer, ModelCatalog, RuntimeProfile, ToolCall } from "../api/types";
 import { DesensitizationModal } from "../components/DesensitizationModal";
 
 type Locale = "zh" | "en";
-type StreamEvent = { type: string; delta?: string; assistant_answer?: string; reasoning_content?: string; message?: string; assistant_message_id?: string };
-type StreamDone = { id?: string; answer?: string; reasoning?: string };
+type StreamEvent = { type: string; delta?: string; assistant_answer?: string; reasoning_content?: string; message?: string; assistant_message_id?: string; tool_call?: ToolCall; tool_calls?: ToolCall[] };
+type StreamDone = { id?: string; answer?: string; reasoning?: string; toolCalls?: ToolCall[] };
 const OPEN_CHAT_CREATE_EVENT = "fh:open-chat-create";
 
 const TEXT = {
@@ -181,6 +181,41 @@ function renderMarkdown(input: string): string {
   return mapped.join("");
 }
 
+function toolTraceLabel(locale: Locale): string {
+  return locale === "zh" ? "调用过程" : "Tool trace";
+}
+
+function toolStatusLabel(locale: Locale, item: ToolCall): string {
+  if (item.kind === "mcp") {
+    if (item.status === "success") return locale === "zh" ? "MCP 调用成功" : "MCP success";
+    if (item.status === "error" || item.status === "unavailable") return locale === "zh" ? "MCP 调用失败" : "MCP failed";
+  }
+  if (item.kind === "kb") {
+    if (item.status === "success") return locale === "zh" ? "知识库检索成功" : "KB success";
+    if (item.status === "empty") return locale === "zh" ? "知识库未命中" : "KB no hit";
+    if (item.status === "warning") return locale === "zh" ? "知识库暂不可用" : "KB unavailable";
+  }
+  return item.detail || item.status;
+}
+
+function toolTitle(item: ToolCall): string {
+  return item.server_name || item.kb_id || item.kind || "tool";
+}
+
+function formatStructured(value: unknown): string {
+  if (value === null || value === undefined) {
+    return "";
+  }
+  if (typeof value === "string") {
+    return value;
+  }
+  try {
+    return JSON.stringify(value, null, 2);
+  } catch {
+    return String(value);
+  }
+}
+
 export function ChatCenter({ token, locale }: { token: string; locale: Locale }) {
   const text = TEXT[locale];
   const [topbarPillEl, setTopbarPillEl] = useState<HTMLElement | null>(null);
@@ -226,6 +261,7 @@ export function ChatCenter({ token, locale }: { token: string; locale: Locale })
   const [selectedSessionIds, setSelectedSessionIds] = useState<string[]>([]);
   const [selectedMessageIds, setSelectedMessageIds] = useState<string[]>([]);
   const [reasoningByMessageId, setReasoningByMessageId] = useState<Record<string, string>>({});
+  const [toolCallsByMessageId, setToolCallsByMessageId] = useState<Record<string, ToolCall[]>>({});
   const [selectedKbIds, setSelectedKbIds] = useState<string[]>([]);
   const [exportMenuSessionId, setExportMenuSessionId] = useState<string | null>(null);
   const [exportIncludeReasoning, setExportIncludeReasoning] = useState<boolean>(true);
@@ -234,6 +270,7 @@ export function ChatCenter({ token, locale }: { token: string; locale: Locale })
   const [pendingIndex, setPendingIndex] = useState(0);
   const [kbMode, setKbMode] = useState<"context" | "chat_default" | "kb">("context");
   const [kbTargetId, setKbTargetId] = useState<string>("");
+  const [streamToolCalls, setStreamToolCalls] = useState<ToolCall[]>([]);
   const togglePicker = (target: "attach" | "mcp" | "kb") => {
     setShowAttachPicker((prev) => (target === "attach" ? !prev : false));
     setShowMcpPicker((prev) => (target === "mcp" ? !prev : false));
@@ -259,6 +296,7 @@ export function ChatCenter({ token, locale }: { token: string; locale: Locale })
   const reasoningQueueRef = useRef("");
   const lastStreamDoneRef = useRef<StreamDone | null>(null);
   const drainTimerRef = useRef<number | null>(null);
+  const abortControllerRef = useRef<AbortController | null>(null);
 
   const activeSession = useMemo(() => sessions.find((item) => item.id === activeSessionId) ?? null, [activeSessionId, sessions]);
   const activeRoleName = useMemo(() => {
@@ -341,7 +379,10 @@ export function ChatCenter({ token, locale }: { token: string; locale: Locale })
 
   useEffect(() => {
     void loadSessions();
-    return () => stopDrain();
+    return () => {
+      stopDrain();
+      abortControllerRef.current?.abort();
+    };
   }, []);
 
   useEffect(() => {
@@ -357,6 +398,14 @@ export function ChatCenter({ token, locale }: { token: string; locale: Locale })
           res.items.reduce<Record<string, string>>((acc, item) => {
             if (item.reasoning_content) {
               acc[item.id] = item.reasoning_content;
+            }
+            return acc;
+          }, {}),
+        );
+        setToolCallsByMessageId(
+          res.items.reduce<Record<string, ToolCall[]>>((acc, item) => {
+            if (Array.isArray(item.tool_calls) && item.tool_calls.length > 0) {
+              acc[item.id] = item.tool_calls;
             }
             return acc;
           }, {}),
@@ -628,15 +677,36 @@ export function ChatCenter({ token, locale }: { token: string; locale: Locale })
     }
   };
 
-  const sendQa = async () => {
-    const normalized = query.trim();
+  const stopStream = () => {
+    abortControllerRef.current?.abort();
+    abortControllerRef.current = null;
+  };
+
+  const findRegenerateTarget = (assistantMessageId: string): ChatMessage | null => {
+    const index = messages.findIndex((item) => item.id === assistantMessageId);
+    if (index <= 0) {
+      return null;
+    }
+    for (let cursor = index - 1; cursor >= 0; cursor -= 1) {
+      if (messages[cursor].role === "user") {
+        return messages[cursor];
+      }
+    }
+    return null;
+  };
+
+  const runQa = async (options?: { regenerateFromMessageId?: string; queryOverride?: string }) => {
+    const normalized = (options?.queryOverride ?? query).trim();
     if (!activeSessionId) return;
-    if (!normalized && attachmentIds.length === 0) {
+    if (!options?.regenerateFromMessageId && !normalized && attachmentIds.length === 0) {
       setMessage(text.enterQuestion);
       return;
     }
+    abortControllerRef.current?.abort();
+    abortControllerRef.current = new AbortController();
     setStreamingAnswer("");
     setStreamingReasoning("");
+    setStreamToolCalls([]);
     answerQueueRef.current = "";
     reasoningQueueRef.current = "";
     lastStreamDoneRef.current = null;
@@ -651,27 +721,36 @@ export function ChatCenter({ token, locale }: { token: string; locale: Locale })
           query: normalized,
           kb_ids: selectedKbIds.length > 0 ? selectedKbIds : null,
           enabled_mcp_ids: selectedMcpIds,
-          attachments_ids: attachmentIds,
+          attachments_ids: options?.regenerateFromMessageId ? [] : attachmentIds,
+          regenerate_from_message_id: options?.regenerateFromMessageId ?? null,
         },
         token,
         (evt: StreamEvent) => {
           if (evt.type === "message") answerQueueRef.current += evt.delta ?? "";
           if (evt.type === "reasoning") reasoningQueueRef.current += evt.delta ?? "";
+          if (evt.type === "tool" && evt.tool_call) {
+            setStreamToolCalls((prev) => [...prev, evt.tool_call as ToolCall]);
+          }
           if (evt.type === "error") setMessage(evt.message ?? "stream failed");
           if (evt.type === "done") {
             lastStreamDoneRef.current = {
               id: evt.assistant_message_id as string | undefined,
               answer: evt.assistant_answer,
               reasoning: evt.reasoning_content,
+              toolCalls: evt.tool_calls,
             };
             if (evt.assistant_message_id && evt.reasoning_content) {
               setReasoningByMessageId((prev) => ({ ...prev, [evt.assistant_message_id as string]: evt.reasoning_content as string }));
+            }
+            if (evt.assistant_message_id && evt.tool_calls?.length) {
+              setToolCallsByMessageId((prev) => ({ ...prev, [evt.assistant_message_id as string]: evt.tool_calls as ToolCall[] }));
             }
             if (evt.assistant_answer && !answerQueueRef.current) {
               answerQueueRef.current = evt.assistant_answer;
             }
           }
         },
+        { signal: abortControllerRef.current.signal },
       );
       if (answerQueueRef.current) {
         setStreamingAnswer((prev) => prev + answerQueueRef.current);
@@ -684,9 +763,12 @@ export function ChatCenter({ token, locale }: { token: string; locale: Locale })
       stopDrain();
       setIsStreaming(false);
       setReasoningExpanded(false);
-      setQuery("");
-      setAttachmentIds([]);
-      setAttachmentNames([]);
+      abortControllerRef.current = null;
+      if (!options?.regenerateFromMessageId) {
+        setQuery("");
+        setAttachmentIds([]);
+        setAttachmentNames([]);
+      }
       const res = await api.listMessages(activeSessionId, token);
       const done = lastStreamDoneRef.current as StreamDone | null;
       let items = res.items;
@@ -698,6 +780,7 @@ export function ChatCenter({ token, locale }: { token: string; locale: Locale })
             role: "assistant",
             content: done.answer ?? "",
             reasoning_content: done.reasoning ?? "",
+            tool_calls: done.toolCalls ?? streamToolCalls,
             created_at: new Date().toISOString(),
           },
         ];
@@ -707,14 +790,32 @@ export function ChatCenter({ token, locale }: { token: string; locale: Locale })
       if (done?.id && items.some((msg) => msg.id === done.id)) {
         setStreamingAnswer("");
         setStreamingReasoning("");
+        setStreamToolCalls([]);
       }
     } catch (error) {
       stopDrain();
       setIsStreaming(false);
+      abortControllerRef.current = null;
+      if (error instanceof DOMException && error.name === "AbortError") {
+        setMessage(locale === "zh" ? "已停止输出，保留当前内容" : "Generation stopped. Partial output kept.");
+        return;
+      }
       setMessage(error instanceof ApiError ? error.message : "send failed");
       setStreamingAnswer("");
       setStreamingReasoning("");
+      setStreamToolCalls([]);
     }
+  };
+
+  const sendQa = async () => runQa();
+
+  const regenerateAnswer = async (assistantMessageId: string) => {
+    const target = findRegenerateTarget(assistantMessageId);
+    if (!target) {
+      setMessage(locale === "zh" ? "未找到可重新回答的用户消息" : "User message for regeneration not found.");
+      return;
+    }
+    await runQa({ regenerateFromMessageId: target.id, queryOverride: target.content });
   };
 
   const copyMessage = async (msg: ChatMessage) => {
@@ -780,6 +881,68 @@ export function ChatCenter({ token, locale }: { token: string; locale: Locale })
     } catch (error) {
       setMessage(error instanceof ApiError ? error.message : text.loadMessagesFailed);
     }
+  };
+
+  const renderToolCalls = (items: ToolCall[], streaming = false) => {
+    if (items.length === 0) {
+      return null;
+    }
+    return (
+      <details className="bubble assistant tool-trace" open={streaming}>
+        <summary>
+          {toolTraceLabel(locale)} {streaming ? `(${locale === "zh" ? "调用中" : "Running"})` : ""}
+        </summary>
+        <div className="tool-trace-list">
+          {items.map((item, index) => (
+            <article key={`${item.kind}-${item.server_id ?? item.kb_id ?? index}`} className={`tool-trace-item status-${item.status}`}>
+              <header className="row-between">
+                <strong>{toolTitle(item)}</strong>
+                <span>{toolStatusLabel(locale, item)}</span>
+              </header>
+              {item.detail && <p>{item.detail}</p>}
+              {item.query && <p><strong>Query:</strong> {item.query}</p>}
+              {item.output && <pre>{item.output}</pre>}
+              {item.error && <pre>{item.error}</pre>}
+              {item.duration_ms ? <small>{item.duration_ms} ms</small> : null}
+              {item.kind === "mcp" && (item.request || item.response || item.raw_detail) ? (
+                <details className="tool-raw-details">
+                  <summary>{locale === "zh" ? "查看原始调用详情" : "View raw call details"}</summary>
+                  {item.request ? (
+                    <div className="tool-raw-block">
+                      <strong>{locale === "zh" ? "请求" : "Request"}</strong>
+                      <pre>{formatStructured(item.request)}</pre>
+                    </div>
+                  ) : null}
+                  {item.response ? (
+                    <div className="tool-raw-block">
+                      <strong>{locale === "zh" ? "响应" : "Response"}</strong>
+                      <pre>{formatStructured(item.response)}</pre>
+                    </div>
+                  ) : null}
+                  {item.raw_detail ? (
+                    <div className="tool-raw-block">
+                      <strong>{locale === "zh" ? "原始文本" : "Raw text"}</strong>
+                      <pre>{item.raw_detail}</pre>
+                    </div>
+                  ) : null}
+                </details>
+              ) : null}
+              {item.kind === "kb" && Array.isArray(item.hits) && item.hits.length > 0 ? (
+                <div className="tool-hit-list">
+                  {item.hits.map((hit, hitIndex) => (
+                    <div key={`${index}-${hitIndex}`} className="tool-hit">
+                      <strong>{locale === "zh" ? `命中 ${hitIndex + 1}` : `Hit ${hitIndex + 1}`}</strong>
+                      <span>{typeof hit.score === "number" ? `score ${hit.score}` : ""}</span>
+                      <p>{hit.preview || ""}</p>
+                    </div>
+                  ))}
+                </div>
+              ) : null}
+            </article>
+          ))}
+        </div>
+      </details>
+    );
   };
 
   return (
@@ -967,14 +1130,17 @@ export function ChatCenter({ token, locale }: { token: string; locale: Locale })
                 <span className="icon-actions">
                   <input type="checkbox" checked={selectedMessageIds.includes(item.id)} onChange={(e) => setSelectedMessageIds((prev) => e.target.checked ? [...prev, item.id] : prev.filter((x) => x !== item.id))} />
                   <button type="button" className="icon-btn" title={text.copyMsg} onClick={() => void copyMessage(item)}><Icon d="M9 9h10v10H9zM5 5h10v10" /></button>
+                  {item.role === "assistant" && <button type="button" className="icon-btn" title={locale === "zh" ? "重新回答" : "Regenerate"} onClick={() => void regenerateAnswer(item.id)}><Icon d="M21 2v6h-6M3 12a9 9 0 0 1 15.54-6.36L21 8M3 22v-6h6M21 12a9 9 0 0 1-15.54 6.36L3 16" /></button>}
                   <button type="button" className="icon-btn" title={text.exportMsgMd} onClick={() => exportMessageMd(item, true)}><Icon d="M12 3v12M7 10l5 5 5-5M5 21h14" /></button>
                   <button type="button" className="icon-btn" title={text.exportMsgPdf} onClick={() => exportMessagePdf(item)}><Icon d="M6 2h9l5 5v15H6zM15 2v5h5" /></button>
                   <button type="button" className="icon-btn danger" title={text.deleteLabel} onClick={() => void deleteMessage(item.id)}><Icon d="M3 6h18M8 6V4h8v2M7 6l1 14h8l1-14M10 10v7M14 10v7" /></button>
                 </span>
               </header>
               <div className="markdown-body" dangerouslySetInnerHTML={{ __html: renderMarkdown(item.content) }} />
+              {item.role === "assistant" && Array.isArray(toolCallsByMessageId[item.id]) && renderToolCalls(toolCallsByMessageId[item.id])}
             </article>
           ))}
+          {streamToolCalls.length > 0 && renderToolCalls(streamToolCalls, true)}
           {streamingReasoning && showReasoning && (
             <details className="bubble assistant reasoning-box" open={isStreaming ? true : reasoningExpanded} onToggle={(e) => setReasoningExpanded((e.target as HTMLDetailsElement).open)}>
               <summary>{text.reasoning} {isStreaming ? `(${text.streaming})` : `(${text.collapsed})`}</summary>
@@ -1062,7 +1228,14 @@ export function ChatCenter({ token, locale }: { token: string; locale: Locale })
           )}
           <textarea value={query} onPaste={(e) => void onPaste(e)} onChange={(e) => setQuery(e.target.value)} placeholder={text.queryPlaceholder} />
           <input ref={fileInputRef} type="file" multiple style={{ display: "none" }} onChange={(e) => openUploadModal(Array.from(e.target.files ?? []))} />
-          <button type="button" onClick={sendQa} disabled={!activeSessionId || isStreaming}>{text.send}</button>
+          <div className="composer-actions">
+            <button type="button" onClick={sendQa} disabled={!activeSessionId || isStreaming}>{text.send}</button>
+            {isStreaming && (
+              <button type="button" className="ghost" onClick={stopStream}>
+                {locale === "zh" ? "停止输出" : "Stop"}
+              </button>
+            )}
+          </div>
           <div className="inline-message">{message}</div>
         </div>
       </div>

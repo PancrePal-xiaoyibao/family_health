@@ -56,6 +56,7 @@ def agent_qa_api(
             attachments_ids=payload.attachments_ids,
             enabled_mcp_ids=payload.enabled_mcp_ids,
             runtime_profile_id=payload.runtime_profile_id,
+            regenerate_from_message_id=payload.regenerate_from_message_id,
         )
     except ChatError as exc:
         return error(exc.code, exc.message, trace_id, status_code=400)
@@ -78,5 +79,6 @@ def agent_qa_stream_api(
         attachments_ids=payload.attachments_ids,
         enabled_mcp_ids=payload.enabled_mcp_ids,
         runtime_profile_id=payload.runtime_profile_id,
+        regenerate_from_message_id=payload.regenerate_from_message_id,
     )
     return StreamingResponse(generator, media_type="text/event-stream")

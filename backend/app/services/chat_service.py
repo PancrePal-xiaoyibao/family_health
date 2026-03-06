@@ -51,6 +51,24 @@ def _load_mcp_ids(raw: str | None) -> list[str]:
     return [item for item in data if isinstance(item, str)]
 
 
+def _dump_json_payload(payload: list[dict] | dict | None) -> str | None:
+    if payload in (None, [], {}):
+        return None
+    return json.dumps(payload, ensure_ascii=False)
+
+
+def _load_json_payload(raw: str | None) -> list[dict] | dict | None:
+    if not raw:
+        return None
+    try:
+        data = json.loads(raw)
+    except json.JSONDecodeError:
+        return None
+    if isinstance(data, (list, dict)):
+        return data
+    return None
+
+
 def _resolve_profile_for_chat_kb(
     db: Session,
     user_id: str,
@@ -149,6 +167,18 @@ def session_to_dict(row: ChatSession) -> dict:
         "context_message_limit": row.context_message_limit,
         "default_enabled_mcp_ids": _load_mcp_ids(row.default_enabled_mcp_ids_json),
         "updated_at": row.updated_at.isoformat(),
+    }
+
+
+def message_to_dict(row: ChatMessage) -> dict:
+    return {
+        "id": row.id,
+        "role": row.role,
+        "content": row.content,
+        "reasoning_content": row.reasoning_content,
+        "tool_calls": _load_json_payload(row.tool_calls_json),
+        "citations": _load_json_payload(row.citations_json),
+        "created_at": row.created_at.isoformat(),
     }
 
 
@@ -292,6 +322,8 @@ def add_message(
     role: str,
     content: str,
     reasoning_content: str | None = None,
+    tool_calls: list[dict] | None = None,
+    citations: list[dict] | dict | None = None,
 ) -> ChatMessage:
     _session_for_user(db, session_id, user_id)
     msg = ChatMessage(
@@ -300,6 +332,8 @@ def add_message(
         role=role,
         content=content,
         reasoning_content=reasoning_content,
+        tool_calls_json=_dump_json_payload(tool_calls),
+        citations_json=_dump_json_payload(citations),
     )
     db.add(msg)
     session = db.query(ChatSession).filter(ChatSession.id == session_id).first()
@@ -517,6 +551,8 @@ def copy_session(
                 role=msg.role,
                 content=msg.content,
                 reasoning_content=msg.reasoning_content,
+                tool_calls_json=msg.tool_calls_json,
+                citations_json=msg.citations_json,
             )
         )
     db.commit()
@@ -536,11 +572,8 @@ def export_session_payload(
         "session": session_to_dict(session),
         "messages": [
             {
-                "id": m.id,
-                "role": m.role,
-                "content": m.content,
+                **message_to_dict(m),
                 "reasoning_content": m.reasoning_content if include_reasoning else None,
-                "created_at": m.created_at.isoformat(),
             }
             for m in messages
         ],

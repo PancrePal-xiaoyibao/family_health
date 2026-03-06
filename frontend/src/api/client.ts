@@ -11,6 +11,7 @@
   ProviderPreset,
   Provider,
   RuntimeProfile,
+  ToolCall,
   UserSession,
 } from "./types";
 
@@ -409,6 +410,7 @@ export const api = {
       enabled_mcp_ids?: string[];
       runtime_profile_id?: string | null;
       attachments_ids?: string[];
+      regenerate_from_message_id?: string | null;
     },
     token: string,
   ): Promise<{
@@ -416,6 +418,7 @@ export const api = {
     assistant_answer: string;
     context: { enabled_mcp_ids: string[]; history_messages: number; attachment_chunks: number };
     tool_warnings: string[];
+    tool_calls: ToolCall[];
   }> => request("/agent/qa", { method: "POST", body: JSON.stringify(payload) }, token),
   qaStream: async (
     payload: {
@@ -426,15 +429,18 @@ export const api = {
       enabled_mcp_ids?: string[];
       runtime_profile_id?: string | null;
       attachments_ids?: string[];
+      regenerate_from_message_id?: string | null;
     },
     token: string,
-    onEvent: (event: { type: string; delta?: string; assistant_answer?: string; reasoning_content?: string; message?: string }) => void,
+    onEvent: (event: { type: string; delta?: string; assistant_answer?: string; reasoning_content?: string; message?: string; assistant_message_id?: string; tool_call?: ToolCall; tool_calls?: ToolCall[] }) => void,
+    options?: { signal?: AbortSignal },
   ): Promise<void> => {
     const runStream = async (currentToken: string, allowRefresh = true): Promise<Response> => {
       const response = await fetch(`${API_PREFIX}/agent/qa/stream`, {
         method: "POST",
         headers: { Authorization: `Bearer ${currentToken}`, "Content-Type": "application/json" },
         body: JSON.stringify(payload),
+        signal: options?.signal,
       });
       if (response.status === 401 && allowRefresh) {
         const refreshed = await refreshSession();
@@ -478,7 +484,7 @@ export const api = {
         if (!raw) {
           continue;
         }
-        onEvent(JSON.parse(raw) as { type: string; delta?: string; assistant_answer?: string; reasoning_content?: string; message?: string });
+        onEvent(JSON.parse(raw) as { type: string; delta?: string; assistant_answer?: string; reasoning_content?: string; message?: string; assistant_message_id?: string; tool_call?: ToolCall; tool_calls?: ToolCall[] });
       }
     }
   },

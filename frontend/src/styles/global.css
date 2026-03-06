@@ -170,6 +170,8 @@ button.ghost {
   display: grid;
   grid-template-rows: auto 1fr;
   gap: 14px;
+  min-height: 0;
+  overflow: hidden;
 }
 
 .topbar-left {
@@ -275,10 +277,16 @@ button.ghost {
   display: grid;
   grid-template-columns: 32% 48% 20%;
   gap: 14px;
+  min-height: 0;
+  align-items: stretch;
 }
 
 .chat-grid.chat-grid-two {
   grid-template-columns: 32% 68%;
+}
+
+.chat-grid > * {
+  min-height: 0;
 }
 
 .list {
@@ -331,6 +339,9 @@ button.ghost {
 .message-flow {
   display: grid;
   grid-template-rows: auto minmax(0, 1fr) auto;
+  min-height: 0;
+  height: 100%;
+  overflow: hidden;
 }
 
 .messages {
@@ -392,6 +403,16 @@ button.ghost {
 .composer {
   display: grid;
   gap: 8px;
+  position: sticky;
+  bottom: 0;
+  background: var(--panel);
+  padding-top: 8px;
+  z-index: 2;
+}
+
+.composer-actions {
+  display: flex;
+  gap: 8px;
 }
 
 .composer-toolbar {
@@ -446,6 +467,73 @@ button.ghost {
   color: var(--text-muted);
   border: 1px solid transparent;
   transition: background 140ms ease, border-color 140ms ease, color 140ms ease;
+}
+
+.tool-trace {
+  background: #eef3fb;
+}
+
+.tool-trace-list {
+  display: grid;
+  gap: 8px;
+}
+
+.tool-trace-item {
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  padding: 8px;
+  background: rgba(255, 255, 255, 0.72);
+}
+
+.tool-trace-item p,
+.tool-trace-item pre {
+  margin: 6px 0 0 0;
+}
+
+.tool-trace-item pre {
+  white-space: pre-wrap;
+  word-break: break-word;
+  font-family: "IBM Plex Mono", monospace;
+  font-size: 0.82rem;
+}
+
+.tool-hit-list {
+  display: grid;
+  gap: 6px;
+  margin-top: 8px;
+}
+
+.tool-raw-details {
+  margin-top: 8px;
+  border-top: 1px dashed var(--line);
+  padding-top: 8px;
+}
+
+.tool-raw-details summary {
+  cursor: pointer;
+  color: var(--text-muted);
+  font-size: 0.84rem;
+}
+
+.tool-raw-block {
+  display: grid;
+  gap: 6px;
+  margin-top: 8px;
+}
+
+.tool-hit {
+  border-top: 1px dashed var(--line);
+  padding-top: 6px;
+}
+
+.status-success {
+  border-color: rgba(37, 99, 235, 0.2);
+}
+
+.status-error,
+.status-warning,
+.status-unavailable {
+  border-color: rgba(185, 28, 28, 0.22);
 }
 
 .session-config-toggle {
